@@ -227,7 +227,7 @@ public sealed class BoardCanvas : Control
             if (_activeElement.Kind == ElementKind.Stroke)
             {
                 var last = _activeElement.Points[^1];
-                if (Math.Hypot(at.X - last.X, at.Y - last.Y) > .5 / View.Zoom)
+                if (double.Hypot(at.X - last.X, at.Y - last.Y) > .5 / View.Zoom)
                     _activeElement.Points.Add(Sample(e, at));
             }
             else if (_activeElement.Kind is ElementKind.Rectangle or ElementKind.Ellipse)
