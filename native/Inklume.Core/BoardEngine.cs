@@ -104,7 +104,7 @@ public sealed class BoardEngine
         if (!r.Inflate(padding).Contains(x, y)) return false;
         if (element.Kind == ElementKind.Ellipse)
         {
-            var rx = Math.Max(1, r.Width / 2 + padding), ry = Math.Max(1, r.Height / 2 + padding);
+            var rx = Math.Max(1, r.Width / 2 + padding); var ry = Math.Max(1, r.Height / 2 + padding);
             var dx = (x - (r.X + r.Width / 2)) / rx;
             var dy = (y - (r.Y + r.Height / 2)) / ry;
             return dx * dx + dy * dy <= 1;
