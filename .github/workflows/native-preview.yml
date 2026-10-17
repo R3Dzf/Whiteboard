@@ -6,6 +6,9 @@ on:
       - 'native/**'
       - '.github/workflows/native-preview.yml'
   workflow_dispatch:
+concurrency:
+  group: inklume-native-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -24,8 +27,8 @@ jobs:
         run: dotnet build native/Inklume.App/Inklume.App.csproj -c Release --no-restore
       - name: Run core smoke tests
         run: dotnet run --project native/Inklume.SmokeTests/Inklume.SmokeTests.csproj -c Release
-      - name: Publish Windows preview
-        run: dotnet publish native/Inklume.App/Inklume.App.csproj -c Release -r win-x64 --self-contained false -o dist/inklume-native
+      - name: Publish Windows self-contained preview
+        run: dotnet publish native/Inklume.App/Inklume.App.csproj -c Release -r win-x64 --self-contained true -o dist/inklume-native
       - name: Upload Windows preview
         uses: actions/upload-artifact@v4
         with:
