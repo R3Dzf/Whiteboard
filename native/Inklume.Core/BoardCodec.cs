@@ -4,7 +4,7 @@ namespace Inklume.Core;
 
 public static class BoardCodec
 {
-    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true, WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     private const int MaxElements = 15000;
     private const int MaxSamples = 200000;
     public static string Write(BoardDocument board) => JsonSerializer.Serialize(board, Options);
@@ -17,7 +17,7 @@ public static class BoardCodec
         if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Not a board");
         if (root.TryGetProperty("objects", out var legacy) && legacy.ValueKind == JsonValueKind.Array)
             return ImportLegacy(root, legacy);
-        if (!root.TryGetProperty("format", out var format) || format.GetString() != "inklume.board.v1")
+        if (!(root.TryGetProperty("format", out var format) || root.TryGetProperty("Format", out format)) || format.GetString() != "inklume.board.v1")
             throw new InvalidDataException("Unsupported board format");
         var board = JsonSerializer.Deserialize<BoardDocument>(input, Options) ?? throw new InvalidDataException("Invalid board");
         Validate(board);
