@@ -16,7 +16,7 @@
 - Six starter layouts for brainstorms, lessons, planning and more.
 - Multiple boards with search. In packaged Windows app, each board is saved to its **own atomic JSON snapshot** in userData with a preceding `.bak` recovery copy; IndexedDB is retained for compatibility. Browsers use IndexedDB.
 - No account needed, no analytics and no external runtime web service for drawing/storage.
-- **Manual, opt-in Windows NSIS updates** via `electron-updater`, with differential-download blockmaps (`differentialPackage: store-asar`) where available; downloadable updates require a later public GitHub Release with `latest.yml` and signed builds are strongly recommended. Portable EXE update behavior not yet verified; use full download for portable. There is **no differential path from v0.2**, which did not include this updater.
+- **Manual, opt-in Windows NSIS updates** via `electron-updater`, with differential-download blockmaps (`differentialPackage: true`) where available; downloadable updates require a later public GitHub Release with `latest.yml` and signed builds are strongly recommended. Portable EXE update behavior not yet verified; use full download for portable. There is **no differential path from v0.2**, which did not include this updater.
 
 ## Develop and build
 
