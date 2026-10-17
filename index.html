@@ -24,6 +24,7 @@
     <div id="workspace" class="workspace">
       <aside class="leftbar" aria-label="Drawing tools">
         <button class="tool active" data-tool="select" title="Select / move (V)"><b>↖</b><small>Select</small></button>
+        <button class="tool" data-tool="lasso" title="Freehand lasso selection (Q)"><b>〰</b><small>Lasso</small></button>
         <button class="tool" data-tool="hand" title="Pan canvas (H / Space)"><b>✋</b><small>Pan</small></button>
         <div class="rail-divider"></div>
         <button class="tool" data-tool="pen" title="Pen (P)"><b>✎</b><small>Pen</small></button>
@@ -38,6 +39,7 @@
         <button class="tool" data-tool="diamond" title="Diamond (D)"><b>◇</b><small>Diamond</small></button>
         <button class="tool" data-tool="line" title="Line (I)"><b>╱</b><small>Line</small></button>
         <button class="tool" data-tool="arrow" title="Arrow (A)"><b>↗</b><small>Arrow</small></button>
+        <button class="tool" data-tool="doubleArrow" title="Double-headed arrow (B)"><b>↔</b><small>2-way</small></button>
         <div class="rail-divider"></div>
         <button class="tool" id="imageTool" title="Insert image"><b>▧</b><small>Image</small></button>
         <button class="tool" id="reactionTool" title="Add a reaction"><b>☺</b><small>React</small></button>
@@ -50,9 +52,11 @@
         <div id="emptyHint" class="empty-hint"><div class="empty-icon">✳</div><h2>Your canvas is ready</h2><p>Draw an idea, add a sticky note, or choose a template.</p><button id="hintTemplate" class="small-primary">Explore templates →</button></div>
         <div id="contextMenu" class="context-menu" hidden>
           <button data-action="edit">✎ Edit text</button><button data-action="duplicate">▢ Duplicate</button>
+          <button data-action="group">⌘ Group selection</button><button data-action="ungroup">⌁ Ungroup</button>
           <button data-action="front">↑ Bring to front</button><button data-action="back">↓ Send to back</button>
           <button data-action="delete" class="danger">⌫ Delete</button>
         </div>
+        <div id="ruler" class="ruler-overlay" hidden><div class="ruler-ticks"></div><span>0 cm</span><span>5</span><span>10</span><span>15</span><span>20</span></div>
         <div class="canvas-bottom-left"><span id="toolHint">Select an object or drag to select multiple</span></div>
         <div class="bottom-controls">
           <button id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
@@ -62,6 +66,7 @@
           <button id="zoomDisplay" class="zoom-label" title="Reset zoom to 100%">100%</button>
           <button id="zoomInBtn" title="Zoom in">+</button>
           <button id="fitBtn" title="Fit all objects">⤢</button>
+          <button id="rulerBtn" title="Toggle draggable ruler (U)">📏</button>
         </div>
       </main>
       <aside id="inspector" class="inspector" hidden>
@@ -74,6 +79,7 @@
         <span class="control-divider"></span>
         <label class="width-control">Size <input id="strokeWidth" type="range" min="1" max="20" value="3"/><span id="strokeWidthValue">3</span></label>
         <button id="moreColors" title="Custom color">⊕</button>
+        <label class="snap-switch" title="Snap objects to a 24-unit grid"><input id="snapToggle" type="checkbox"/> Snap</label>
       </div>
     </div>
     <section id="gallery" class="gallery" aria-label="Boards library">
@@ -97,6 +103,7 @@
   <input id="colorInput" type="color" value="#334155" hidden />
   <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
   <script src="src/model.js"></script>
+  <script src="src/pdf.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>
