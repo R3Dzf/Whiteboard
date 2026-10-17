@@ -118,6 +118,7 @@ public sealed class MainWindow : Window
         actions.Children.Add(ActionButton("↶ Undo",()=>{if(_canvas.Engine.Undo())_canvas.Redraw();}));
         actions.Children.Add(ActionButton("↷ Redo",()=>{if(_canvas.Engine.Redo())_canvas.Redraw();}));
         actions.Children.Add(ActionButton("Import",()=>_ = ImportAsync()));
+        actions.Children.Add(ActionButton("Export",()=>_ = ExportAsync()));
         actions.Children.Add(ActionButton("＋ Image",()=>_ = ImportImageAsync()));
         actions.Children.Add(ActionButton("Save",()=>SaveNow(true),true));
         Grid.SetColumn(actions,3);header.Children.Add(actions);
@@ -242,7 +243,7 @@ public sealed class MainWindow : Window
     private void Open(BoardDocument board)
     {
         SaveNow(false);_canvas.ReplaceDocument(board);HookEngine();_title.Text=board.Name;
-        _status.Text="Board opened";RefreshLibrary();_canvas.Focus();
+        _status.Text="Board opened";SaveNow(false);_canvas.Focus();
     }
     private void ScheduleSave() { _status.Text="● Unsaved changes";_saveTimer.Stop();_saveTimer.Start(); }
     private void SaveNow(bool showStatus)
@@ -265,6 +266,28 @@ public sealed class MainWindow : Window
             Open(imported);SaveNow(true);
         }
         catch(Exception ex) { _status.Text="Import failed — " + ex.Message; }
+    }
+    private async Task ExportAsync()
+    {
+        var board=_canvas.Engine.Document;
+        var name=new string(board.Name.Where(c=>char.IsLetterOrDigit(c)||c==' '||c=='-'||c=='_').ToArray()).Trim();
+        if (string.IsNullOrEmpty(name)) name="Inklume board";
+        try
+        {
+            var file=await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title="Export an editable Inklume board",
+                SuggestedFileName=name+".inklume.json",DefaultExtension="json",
+                FileTypeChoices=new[]{new FilePickerFileType("Editable Inklume board") { Patterns=new[]{"*.json"} }}
+            });
+            if (file==null) return;
+            await using var stream=await file.OpenWriteAsync();
+            await using var writer=new StreamWriter(stream);
+            await writer.WriteAsync(BoardCodec.Write(board));
+            await writer.FlushAsync();
+            _status.Text="✓ Board exported as editable JSON";
+        }
+        catch (Exception ex) { _status.Text="Export failed — "+ex.Message; }
     }
     private async Task ImportImageAsync()
     {
@@ -299,6 +322,7 @@ public sealed class MainWindow : Window
                 case Key.A: _canvas.SelectAll();break;
                 case Key.S: SaveNow(true);break;
                 case Key.O: _=ImportAsync();break;
+                case Key.E: _=ExportAsync();break;
                 default:return;
             }
             e.Handled=true;return;

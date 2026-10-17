@@ -4,7 +4,7 @@ A native Windows whiteboard prototype built with Avalonia UI, C# and the Skia-ba
 
 ## Current capabilities
 
-Infinite canvas, pen and marker pressure samples, partial eraser, rectangles, ellipses, lines, arrows, sticky notes and text, selectable and movable objects, multi-selection, duplicating and deleting, zoom/pan/fit, light and dark canvas backgrounds, a multi-board sidebar, editable titles, raster image import/display, undo/redo, resilient local board storage and explicit import of legacy JSON exports.
+Infinite canvas, pen and marker pressure samples, partial eraser, rectangles, ellipses, lines, arrows, sticky notes and text, selectable and movable objects, multi-selection, duplicating and deleting, zoom/pan/fit, light and dark canvas backgrounds, a multi-board sidebar, editable titles, raster image import/display, native EXE icon, editable JSON export, undo/redo, resilient local board storage and explicit import of legacy JSON exports.
 
 This is an **engineering preview**, not a stable release. Running tests does not demonstrate real-world drawing latency or flawless interaction on every screen/digitizer.
 

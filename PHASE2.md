@@ -8,6 +8,8 @@
 - Added partial stroke erasing with independently editable fragments.
 - Added real raster image display with capped local decode cache; users can import PNG, JPG and WEBP directly.
 - Added native arrows and lines, board background toggles, tool shortcuts and board creation/opening.
+- Added editable JSON board export and immediate persistence of newly created boards.
+- Added the branded Windows EXE icon.
 - Grid rendering has a bounded workload regardless of zoom or display size. Spatial culling remains enabled.
 
 ## Quality status
