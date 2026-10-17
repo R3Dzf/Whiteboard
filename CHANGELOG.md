@@ -21,5 +21,5 @@
 - Add native atomic on-disk board snapshots, previous-revision `.bak` recovery, dual IndexedDB compatibility and defensive data bounds.
 - Integrate local PDF.js rendering into board-image import (up to 12 pages / 20MB) and drag/drop images/PDF; installed dependency and Windows PDF tests pending.
 - Add conservative **Convert ink to shape** action for strokes, rectangles and ellipses.
-- Add opt-in updater UI, `electron-updater` version-check/download/restart and progress, GitHub feed and NSIS `store-asar` blockmap configuration for future differential updates.
+- Add opt-in updater UI, `electron-updater` version-check/download/restart and progress, GitHub feed and NSIS `true` blockmap configuration for future differential updates.
 - Increase unit tests from 15 to 21, including recovery, update flow and ink recognizer. Windows build and two-release delta integration test still pending.
