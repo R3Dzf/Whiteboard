@@ -17,6 +17,7 @@ public sealed class BoardCanvas : Control
     private static readonly Dictionary<string, IBrush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, (string Source, Bitmap Image)> _bitmaps = new();
     private readonly HashSet<string> _selected = new();
+    private readonly Dictionary<(string Color, int WidthBucket), Pen> _segmentPens = new();
     private readonly Dictionary<string, BoardElement> _moveOrigins = new();
     private readonly List<BoardElement> _movingReferences = new();
     public BoardEngine Engine { get; private set; }
@@ -50,9 +51,9 @@ public sealed class BoardCanvas : Control
     {
         var elements = Engine.Document.Elements;
         if (elements.Count == 0) { View.Reset(); InvalidateVisual(); ViewChanged?.Invoke(); return; }
-        var minX = elements.Min(e => e.Bounds.X), minY = elements.Min(e => e.Bounds.Y);
-        var maxX = elements.Max(e => e.Bounds.Right), maxY = elements.Max(e => e.Bounds.Bottom);
-        var width = Math.Max(1, maxX - minX), height = Math.Max(1, maxY - minY);
+        var minX = elements.Min(e => e.Bounds.X); var minY = elements.Min(e => e.Bounds.Y);
+        var maxX = elements.Max(e => e.Bounds.Right); var maxY = elements.Max(e => e.Bounds.Bottom);
+        var width = Math.Max(1, maxX - minX); var height = Math.Max(1, maxY - minY);
         View.SetFit(new WorldRect(minX, minY, width, height), Bounds.Width, Bounds.Height);
         InvalidateVisual(); ViewChanged?.Invoke();
     }
@@ -92,6 +93,16 @@ public sealed class BoardCanvas : Control
     {
         var p = Screen(b.X, b.Y);
         return new Rect(p.X, p.Y, Math.Max(.01, b.Width * View.Zoom), Math.Max(.01, b.Height * View.Zoom));
+    }
+    private Pen SegmentPen(string color, double width)
+    {
+        var bucket = Math.Clamp((int)Math.Round(width * 4), 2, 1024);
+        var key = (color, bucket);
+        if (_segmentPens.TryGetValue(key, out var cached)) return cached;
+        var pen = new Pen(Brush(color, Brushes.DarkSlateBlue), bucket / 4d) { LineCap = PenLineCap.Round };
+        if (_segmentPens.Count > 2048) _segmentPens.Clear();
+        _segmentPens[key] = pen;
+        return pen;
     }
     private static IBrush Brush(string value, IBrush fallback)
     {
@@ -138,15 +149,17 @@ public sealed class BoardCanvas : Control
         }
         var visible = View.Visible(Bounds.Width, Bounds.Height).Inflate(60 / zoom);
         var candidates = Engine.Visible(visible).ToList();
-        // Spatial entries are updated only on pointer-up. Keep changed objects visible meanwhile.
+        // During idle drawing, never scan the whole document just to find live objects.
+        // Changed objects are held by reference until the index is refreshed at pointer-up.
         if (_activeElement != null && candidates.All(c => c.Id != _activeElement.Id)) candidates.Add(_activeElement);
         foreach (var obj in _movingReferences)
             if (candidates.All(c => c.Id != obj.Id)) candidates.Add(obj);
         foreach (var obj in candidates)
             if (obj.Bounds.Intersects(visible) || _moveOrigins.ContainsKey(obj.Id) || ReferenceEquals(obj, _activeElement)) DrawElement(context, obj);
         var outline = new Pen(Brush("#7660E8", Brushes.Blue), 1.5) { DashStyle = DashStyle.Dash };
-        foreach (var obj in Engine.Document.Elements.Where(o => _selected.Contains(o.Id)))
-            context.DrawRectangle(null, outline, ScreenRect(obj.Bounds.Inflate(5 / zoom)));
+        if (_selected.Count > 0)
+            foreach (var obj in Engine.Document.Elements.Where(o => _selected.Contains(o.Id)))
+                context.DrawRectangle(null, outline, ScreenRect(obj.Bounds.Inflate(5 / zoom)));
         if (_marquee is { } m)
             context.DrawRectangle(Brush("#E8E6FF", Brushes.LightBlue), outline, ScreenRect(m));
     }
@@ -159,16 +172,18 @@ public sealed class BoardCanvas : Control
         switch (e.Kind)
         {
             case ElementKind.Stroke:
+            {
                 var pts = e.Points;
                 for (var i = 1; i < pts.Count; i++)
                 {
                     var a = pts[i-1]; var b = pts[i];
                     var pressure = Math.Clamp((a.Pressure + b.Pressure) / 2, .1f, 1f);
                     var width = Math.Max(.65, thickness * (.45 + pressure * .9));
-                    ctx.DrawLine(new Pen(stroke, width) { LineCap = PenLineCap.Round }, Screen(a), Screen(b));
+                    ctx.DrawLine(SegmentPen(e.Color, width), Screen(a), Screen(b));
                 }
                 if (pts.Count == 1) ctx.DrawEllipse(stroke, null, Screen(pts[0]), thickness / 2, thickness / 2);
                 break;
+            }
             case ElementKind.Rectangle: ctx.DrawRectangle(fill, pen, r, 6 * View.Zoom); break;
             case ElementKind.Ellipse: ctx.DrawEllipse(fill, pen, r.Center, r.Width / 2, r.Height / 2); break;
             case ElementKind.Line: case ElementKind.Arrow:
@@ -265,10 +280,8 @@ public sealed class BoardCanvas : Control
     private void EraseAt((double X,double Y) at)
     {
         var radius=11 / View.Zoom;
-        // Only start a history transaction if there is an actual nearby stroke.
-        var nearby=Engine.Document.Elements.Any(obj => obj.Kind==ElementKind.Stroke && obj.Bounds.Inflate(radius+obj.Thickness).Contains(at.X,at.Y) &&
-            BoardEngine.StrokeHit(obj.Points,at.X,at.Y,radius+obj.Thickness));
-        if (!nearby) return;
+        // Avoid a history entry for an eraser click that misses the ink entirely.
+        if (!_historyStarted && Engine.HitTest(at.X,at.Y,12,View.Zoom)?.Kind != ElementKind.Stroke) return;
         StartHistory();
         if (Engine.EraseInk(at.X,at.Y,radius)>0) { _changed=true; InvalidateVisual(); }
     }
@@ -290,11 +303,11 @@ public sealed class BoardCanvas : Control
                 var sx=(screen.X-_dragOrigin.X)/View.Zoom;var sy=(screen.Y-_dragOrigin.Y)/View.Zoom;
                 if (Math.Abs(sx)+Math.Abs(sy)>.7 && !_changed) { StartHistory();_changed=true; }
                 if (_changed)
-                foreach (var obj in _movingReferences)
+                foreach (var moving in _movingReferences)
                 {
-                    var orig=_moveOrigins[obj.Id];obj.X=orig.X+sx;obj.Y=orig.Y+sy;
+                    var orig=_moveOrigins[moving.Id];moving.X=orig.X+sx;moving.Y=orig.Y+sy;
                     if (orig.Kind==ElementKind.Stroke)
-                        obj.Points=orig.Points.Select(p=>new InkPoint(p.X+sx,p.Y+sy,p.Pressure,p.TiltX,p.TiltY)).ToList();
+                        moving.Points=orig.Points.Select(p=>new InkPoint(p.X+sx,p.Y+sy,p.Pressure,p.TiltX,p.TiltY)).ToList();
                 }
             }
             InvalidateVisual();return;

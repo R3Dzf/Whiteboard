@@ -28,12 +28,11 @@ public sealed class MainWindow : Window
     private readonly StackPanel _toolItems = new() { Spacing = 6 };
     private readonly TextBlock _selectionSummary = new() { FontSize = 12, Foreground = Muted };
     private readonly TextBox _textEditor = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 110,
-        MaxHeight = 230, Watermark = "Select a text or sticky-note element" };
+        MaxHeight = 230, PlaceholderText = "Select a text or sticky-note element" };
     private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromMilliseconds(750) };
     private readonly ColumnDefinition _libraryColumn = new() { Width = new GridLength(230) };
     private readonly ColumnDefinition _inspectorColumn = new() { Width = new GridLength(244) };
     private readonly Dictionary<CanvasTool, Button> _toolButtons = new();
-    private bool _editingTitle;
 
     public MainWindow()
     {
@@ -230,7 +229,6 @@ public sealed class MainWindow : Window
     private void HookEngine() => _canvas.Engine.Changed += ScheduleSave;
     private void UpdateTitle()
     {
-        if (_editingTitle) return;
         var name=(_title.Text??"").Trim();
         if (name.Length==0 || name==_canvas.Engine.Document.Name) return;
         _canvas.Engine.Document.Name=name[..Math.Min(name.Length,90)];ScheduleSave();

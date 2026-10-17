@@ -9,6 +9,7 @@ public sealed class BoardEngine
     private readonly Dictionary<string, (int Order, BoardElement Element)> _lookup = new();
     private readonly Stack<string> _undo = new();
     private readonly Stack<string> _redo = new();
+    private readonly HashSet<string> _pendingInkFragments = new();
     public BoardDocument Document { get; private set; }
     public event Action? Changed;
 
@@ -32,6 +33,7 @@ public sealed class BoardEngine
     private void Reindex()
     {
         _index.Rebuild(Document.Elements);
+        _pendingInkFragments.Clear();
         _lookup.Clear();
         for (var i = 0; i < Document.Elements.Count; i++)
             _lookup[Document.Elements[i].Id] = (i, Document.Elements[i]);
@@ -59,15 +61,24 @@ public sealed class BoardEngine
 
     public int EraseInk(double x, double y, double radius)
     {
-        // The index is stable for the lifetime of an edit; erasing repeatedly must
-        // inspect live objects as well as indexed cells since split fragments are new.
+        // Only geometry-test spatial candidates and fragments created during this edit.
+        // The index is deliberately rebuilt once on CompleteEdit, not on every pointer event.
+        var candidates = _index.Query(new WorldRect(x-radius-64,y-radius-64,(radius+64)*2,(radius+64)*2));
+        candidates.UnionWith(_pendingInkFragments);
         var changed = 0;
         var revised = new List<BoardElement>(Document.Elements.Count);
         foreach (var element in Document.Elements)
         {
+            if (element.Kind != ElementKind.Stroke || !candidates.Contains(element.Id)) { revised.Add(element); continue; }
             var result = InkPipeline.PartialErase(element, x, y, radius);
             if (result is null) revised.Add(element);
-            else { changed++; revised.AddRange(result); }
+            else
+            {
+                changed++;
+                _pendingInkFragments.Remove(element.Id);
+                foreach (var part in result) _pendingInkFragments.Add(part.Id);
+                revised.AddRange(result);
+            }
         }
         if (changed > 0) { Document.Elements.Clear(); Document.Elements.AddRange(revised); }
         return changed;
