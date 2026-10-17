@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Bosha Whiteboard</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button id="homeBtn" class="logo-button" title="All boards" aria-label="All boards"><span class="brand-mark">✳</span></button>
+      <div class="brand-text"><strong>Bosha</strong><span>Whiteboard</span></div>
+      <div class="top-divider"></div>
+      <button id="boardTitle" class="board-title" title="Rename board">Untitled board <span>⌄</span></button>
+      <div class="save-pill" id="saveStatus">● Saved locally</div>
+      <div class="top-grow"></div>
+      <button id="templatesBtn" class="head-btn">▦ <span>Templates</span></button>
+      <button id="boardSettingsBtn" class="head-btn">⚙ <span>Canvas</span></button>
+      <button id="importBtn" class="head-btn">↥ <span>Import</span></button>
+      <button id="exportBtn" class="primary-btn">↗ <span>Export</span></button>
+    </header>
+    <div id="workspace" class="workspace">
+      <aside class="leftbar" aria-label="Drawing tools">
+        <button class="tool active" data-tool="select" title="Select / move (V)"><b>↖</b><small>Select</small></button>
+        <button class="tool" data-tool="hand" title="Pan canvas (H / Space)"><b>✋</b><small>Pan</small></button>
+        <div class="rail-divider"></div>
+        <button class="tool" data-tool="pen" title="Pen (P)"><b>✎</b><small>Pen</small></button>
+        <button class="tool" data-tool="highlighter" title="Highlighter (M)"><b>▰</b><small>Highlight</small></button>
+        <button class="tool" data-tool="eraser" title="Erase ink strokes (E)"><b>⌫</b><small>Erase</small></button>
+        <button class="tool" data-tool="laser" title="Temporary laser pointer (L)"><b>☄</b><small>Laser</small></button>
+        <div class="rail-divider"></div>
+        <button class="tool" data-tool="sticky" title="Sticky note (N)"><b>▣</b><small>Note</small></button>
+        <button class="tool" data-tool="text" title="Text box (T)"><b>𝐓</b><small>Text</small></button>
+        <button class="tool" data-tool="rect" title="Rectangle (R)"><b>▢</b><small>Rectangle</small></button>
+        <button class="tool" data-tool="ellipse" title="Ellipse (O)"><b>◯</b><small>Ellipse</small></button>
+        <button class="tool" data-tool="diamond" title="Diamond (D)"><b>◇</b><small>Diamond</small></button>
+        <button class="tool" data-tool="line" title="Line (I)"><b>╱</b><small>Line</small></button>
+        <button class="tool" data-tool="arrow" title="Arrow (A)"><b>↗</b><small>Arrow</small></button>
+        <div class="rail-divider"></div>
+        <button class="tool" id="imageTool" title="Insert image"><b>▧</b><small>Image</small></button>
+        <button class="tool" id="reactionTool" title="Add a reaction"><b>☺</b><small>React</small></button>
+      </aside>
+      <main id="canvasHost" class="canvas-host" tabindex="0" aria-label="Whiteboard canvas">
+        <svg id="canvas" xmlns="http://www.w3.org/2000/svg" aria-label="Editable canvas">
+          <g id="world"><g id="items"></g><g id="selectionOverlays"></g><g id="preview"></g></g>
+          <g id="laserLayer"></g>
+        </svg>
+        <div id="emptyHint" class="empty-hint"><div class="empty-icon">✳</div><h2>Your canvas is ready</h2><p>Draw an idea, add a sticky note, or choose a template.</p><button id="hintTemplate" class="small-primary">Explore templates →</button></div>
+        <div id="contextMenu" class="context-menu" hidden>
+          <button data-action="edit">✎ Edit text</button><button data-action="duplicate">▢ Duplicate</button>
+          <button data-action="front">↑ Bring to front</button><button data-action="back">↓ Send to back</button>
+          <button data-action="delete" class="danger">⌫ Delete</button>
+        </div>
+        <div class="canvas-bottom-left"><span id="toolHint">Select an object or drag to select multiple</span></div>
+        <div class="bottom-controls">
+          <button id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+          <button id="redoBtn" title="Redo (Ctrl+Y)">↷</button>
+          <span class="control-divider"></span>
+          <button id="zoomOutBtn" title="Zoom out">−</button>
+          <button id="zoomDisplay" class="zoom-label" title="Reset zoom to 100%">100%</button>
+          <button id="zoomInBtn" title="Zoom in">+</button>
+          <button id="fitBtn" title="Fit all objects">⤢</button>
+        </div>
+      </main>
+      <aside id="inspector" class="inspector" hidden>
+        <div class="inspector-head"><strong>Properties</strong><button id="closeInspector" title="Close">×</button></div>
+        <div id="inspectorBody"></div>
+      </aside>
+      <div id="penBar" class="penbar">
+        <span id="styleLabel" class="style-label">Ink</span>
+        <div id="colors" class="colors"></div>
+        <span class="control-divider"></span>
+        <label class="width-control">Size <input id="strokeWidth" type="range" min="1" max="20" value="3"/><span id="strokeWidthValue">3</span></label>
+        <button id="moreColors" title="Custom color">⊕</button>
+      </div>
+    </div>
+    <section id="gallery" class="gallery" aria-label="Boards library">
+      <div class="gallery-inner">
+        <div class="gallery-header"><div><span class="eyebrow">YOUR WORKSPACE</span><h1>Make space for ideas<span class="accent-dot">.</span></h1><p>Your boards stay on this device. No account required.</p></div><button id="newBoardBtn" class="primary-btn large">＋ New whiteboard</button></div>
+        <div class="gallery-toolbar"><h2>My whiteboards <span id="boardCount"></span></h2><input id="boardSearch" placeholder="⌕  Search boards" aria-label="Search boards" /></div>
+        <div id="boardCards" class="board-grid"></div>
+        <div class="gallery-footer">Bosha Whiteboard · Free & offline-first <span>Import and export .bosha.json to back up or move your boards.</span></div>
+      </div>
+    </section>
+  </div>
+  <div id="dialogBackdrop" class="dialog-backdrop" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <div class="dialog-head"><h2 id="dialogTitle">Dialog</h2><button id="dialogClose" class="icon-button">✕</button></div>
+      <div id="dialogBody"></div>
+      <div id="dialogActions" class="dialog-actions"></div>
+    </div>
+  </div>
+  <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+  <input id="boardInput" type="file" accept=".json,.bosha.json,application/json" hidden />
+  <input id="colorInput" type="color" value="#334155" hidden />
+  <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
+  <script src="src/model.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
