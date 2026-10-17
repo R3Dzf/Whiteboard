@@ -1,0 +1,45 @@
+{
+  "name": "bosha-whiteboard",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Offline-first Windows whiteboard with infinite SVG canvas",
+  "author": "R3Dzf",
+  "license": "MIT",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "check": "node --check src/model.js && node --check src/pdf.js && node --check src/app.js && node --check desktop/main.cjs && npm test",
+    "dist:win": "electron-builder --win nsis portable"
+  },
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.r3dzf.boshawhiteboard",
+    "productName": "Bosha Whiteboard",
+    "files": [
+      "index.html",
+      "src/**/*",
+      "desktop/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "Bosha-Whiteboard-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}
