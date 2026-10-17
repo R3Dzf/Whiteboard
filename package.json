@@ -1,15 +1,15 @@
 {
-  "name": "bosha-whiteboard",
-  "version": "0.2.0",
+  "name": "inklume",
+  "version": "0.3.0",
   "private": true,
-  "description": "Offline-first Windows whiteboard with infinite SVG canvas",
+  "description": "Inklume: offline-first infinite creative canvas for Windows",
   "author": "R3Dzf",
   "license": "MIT",
   "main": "desktop/main.cjs",
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
-    "check": "node --check src/model.js && node --check src/pdf.js && node --check src/app.js && node --check desktop/main.cjs && npm test",
+    "check": "node --check src/model.js && node --check src/pdf.js && node --check src/app.js && node --check desktop/main.cjs && node --check desktop/preload.cjs && node --check desktop/storage.cjs && node --check desktop/updater.cjs && npm test",
     "dist:win": "electron-builder --win nsis portable --publish never"
   },
   "devDependencies": {
@@ -18,11 +18,13 @@
   },
   "build": {
     "appId": "com.r3dzf.boshawhiteboard",
-    "productName": "Bosha Whiteboard",
+    "productName": "Inklume",
     "files": [
       "index.html",
+      "assets/**/*",
       "src/**/*",
       "desktop/**/*",
+      "node_modules/pdfjs-dist/build/**/*",
       "package.json",
       "LICENSE"
     ],
@@ -33,16 +35,31 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "artifactName": "Bosha-Whiteboard-Setup-${version}-${arch}.${ext}"
+      "artifactName": "Inklume-Setup-${version}-${arch}.${ext}",
+      "differentialPackage": "store-asar"
     },
     "portable": {
-      "artifactName": "Bosha-Whiteboard-Portable-${version}-${arch}.${ext}"
+      "artifactName": "Inklume-Portable-${version}-${arch}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "R3Dzf",
+      "repo": "Whiteboard"
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/R3Dzf/Whiteboard.git"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2",
+    "pdfjs-dist": "^4.10.38"
   }
 }

@@ -1,77 +1,83 @@
-# Microsoft Whiteboard vs Bosha Whiteboard — feature tracker
+# Inklume vs. Microsoft Whiteboard — Feature inventory
 
-Updated 2026-10-17 · Bosha v0.2.0 beta source preview
+Updated: **2026-10-17** — **Inklume v0.3.0 beta source** (formerly Bosha Whiteboard)
 
-Legend: ✅ Implemented in source; 🟡 partial / needs validation; ⬜ not built; ➖ intentionally out of scope. Microsoft status follows published feature docs; availability depends on edition.
+Legend: ✅ implemented in source / applicable automated tests; ◐ partial, unverified on Windows hardware, or depends on an untested packaged component; ⬜ missing; — intentionally outside independent-app scope. “Microsoft” indicates a feature in some supported Whiteboard experience, not necessarily every Microsoft account. The standalone Microsoft Whiteboard apps retired **Oct 16 2026** (web & Teams continue for supported enterprise accounts).
 
-Microsoft retired its standalone Windows, iOS and Android apps on October 16, 2026. Whiteboard on the web and in Teams remains available for eligible work/school users.
+| Category | Capability | Microsoft | Inklume v0.3.0 | Detail / outstanding work |
+|---|---|:---:|:---:|---|
+| Platform | Windows desktop | Retired | ◐ | Electron packaging exists; v0.3 installer not yet certified |
+| Platform | Browser | ✅ | ✅ | Local static web UI; PDF import requires bundled pdfjs-dist assets |
+| Platform | Android | Retired | ⬜ | Not implemented |
+| Platform | iOS | Retired | ⬜ | Not implemented |
+| Accounts | Use without sign-in | Varies | ✅ | Fully local-first |
+| Canvas | Infinite pan and zoom | ✅ | ✅ | Zoom, fit, pan and shortcuts |
+| Canvas | Light and dark backgrounds | ✅ | ✅ | Board-specific |
+| Canvas | Grid, dots and ruled | ✅ | ✅ | Board-specific |
+| Canvas | Finger gestures and pinch | ✅ | ◐ | Hardware behavior untested |
+| Canvas | Movable / rotatable ruler | ✅ | ◐ | Visual ruler; line guidance not implemented |
+| Canvas | Snap to grid | Varies | ✅ | 24-unit snap |
+| Ink | Pen & highlighter | ✅ | ✅ | Colors, widths and stroke smoothing |
+| Ink | Pressure-sensitive stylus | ✅ | ◐ | PointerEvent pressure, hardware untested |
+| Ink | Partial eraser | ✅ | ✅ | Erases portions of sampled strokes |
+| Ink | Ink-to-shape recognition | ✅ | ◐ | v0.3 manual conversion: clear line/rectangle/ellipse only |
+| Ink | Lasso | ✅ | ✅ | Freehand path selection |
+| Ink | Straight line / Shift | ✅ | ✅ | Drawing tools |
+| Ink | One-way & two-way arrows | ✅ | ✅ | Geometry tools |
+| Ink | Laser pointer | ✅ | ✅ | Nonpersistent |
+| Elements | Text / sticky notes | ✅ | ✅ | Editable |
+| Elements | Note grids | ✅ | ◐ | Templates approximate note grids |
+| Elements | Shapes / diagrams | ✅ | ✅ | Rectangle, oval, diamond, arrows etc |
+| Elements | Images | ✅ | ✅ | Upload, drag-drop, clipboard paste |
+| Elements | Reactions | ✅ | ✅ | Emoji elements |
+| Elements | PDF pages import | ✅ | ◐ | v0.3 PDF.js source code (12 pages max); Windows packaged test needed |
+| Elements | PowerPoint import | ✅ | ⬜ | Not available |
+| Elements | Live links/media embedding | Varies | ⬜ | No interactive embedding |
+| Editing | Marquee multi-select | ✅ | ✅ | Select by rectangle |
+| Editing | Lasso selection | ✅ | ✅ | Free-form path |
+| Editing | Move / resize | ✅ | ✅ | Resize rotated objects remains limited |
+| Editing | Rotation | ✅ | ◐ | Numeric / handle controls |
+| Editing | Group / ungroup | ✅ | ✅ | Persistent group IDs |
+| Editing | Align objects | ✅ | ✅ | Six alignments |
+| Editing | Duplicate / copy / paste | ✅ | ✅ | Inside app; system image paste supported |
+| Editing | Layer ordering | ✅ | ✅ | Front/back + model functions |
+| Editing | Undo / redo | ✅ | ✅ | 80 object snapshots |
+| Templates | Starter board templates | ✅ | ✅ | Six presets |
+| Templates | Large reusable template library | ✅ | ◐ | Limited to six layouts |
+| Templates | Custom template saving | ✅ | ⬜ | JSON export as workaround |
+| Storage | Multi-board gallery/search | ✅ | ✅ | Works locally |
+| Storage | Local autosave | MS cloud | ◐ | IndexedDB + native atomic snapshots; native integration unverified on Windows |
+| Storage | Crash recovery backup | Different | ✅ | Native `.bak` fallback tested |
+| Storage | v0.2 board migration | Different | ◐ | Schema & path retained; in-place upgrade test needed |
+| Storage | Export/import editable JSON | Different | ✅ | `.inklume.json`, compatible with `.bosha.json` |
+| Storage | Microsoft `.whiteboard` import | Native | ⬜ | Format migration not implemented |
+| Export | PNG / SVG | ✅/varies | ✅ | Export tools |
+| Export | PDF | Varies | ✅ | One-page flattened PDF, not editable |
+| Collaboration | Multiple live editors | ✅ | ⬜ | Requires backend/session protocol |
+| Collaboration | Live cursors | ✅ | ⬜ | Not implemented |
+| Collaboration | Invite links / permissions | ✅ | ⬜ | Not implemented |
+| Integration | Microsoft Teams | ✅ | — | Independent product |
+| Privacy | No cloud account / telemetry | Varies | ✅ | Local by default |
+| Branding | Independent name and artwork | — | ✅ | **Inklume** icon PNG/ICO/favicon |
+| Updates | Manual check / download / install | Former apps | ◐ | Electron-updater state machine; real feed & Windows QA required |
+| Updates | Differential/Delta downloads | Varies | ◐ | v0.3 NSIS blockmap config; **not yet end-to-end tested** |
+| Updates | Download progress display | Varies | ✅ | User-facing percentage/bytes UI |
+| Updates | Automatic fallback to full | Varies | ◐ | Provided by electron-updater; validate with real pair of releases |
+| Releases | Windows installer / portable | Retired | ◐ | Build config, not a verified v0.3 release |
+| Releases | Signed stable release | Retired | ⬜ | Certificate and QA needed |
+| QA | Automated tests | Internal | ✅ | 21 source/unit tests; PDF integration smoke outstanding |
 
-Area | Feature | Microsoft Whiteboard | Bosha v0.2 | Status / note
----|---|:---:|:---:|---
-Platform | Windows standalone | Retired | 🟡 | Electron source; installer unvalidated
-Platform | Browser interface | ✅ | ✅ | Offline drawing core
-Platform | Android native app | Retired | ⬜ | Not built
-Platform | iOS native app | Retired | ⬜ | Not built
-Account | No-account use | Varies | ✅ | No sign-in needed
-Canvas | Infinite canvas / zoom / pan | ✅ | ✅ | Includes fit-to-content
-Canvas | Grid, ruled, dotted, dark surface | ✅ | ✅ | Per board
-Canvas | Touch / pinch | ✅ | 🟡 | Implemented; hardware validation pending
-Canvas | Ruler | ✅ | 🟡 | Movable rotatable overlay; no ink constraint
-Canvas | Snap-to-grid | Varies | ✅ | Toggle
-Ink | Pen, thickness, custom colors | ✅ | ✅ | Mouse/pen
-Ink | Pressure-sensitive pen | ✅ | 🟡 | PointerEvent pressure; hardware validation pending
-Ink | Highlighter | ✅ | ✅ | Semi-transparent
-Ink | Eraser | ✅ | ✅ | Sampled stroke segments
-Ink | Straight line ink with Shift | ✅ | ✅ | Pen mode
-Ink | Ink-to-shape auto recognition | ✅ | ⬜ | Not built
-Ink | Laser pointer | ✅ | ✅ | Not saved
-Ink | Double arrow mode | ✅ | ✅ | Shape equivalent
-Elements | Shapes, line, arrow, text | ✅ | ✅ | Editable
-Elements | Sticky notes | ✅ | ✅ | Multiple colors
-Elements | Note grids | ✅ | 🟡 | Template arrangement only
-Elements | Images / photos | ✅ | ✅ | PNG, JPEG, WebP, GIF
-Elements | Reactions / emojis | ✅ | ✅ | Twelve styles
-Elements | PDF import | ✅ | ⬜ | Local PDF renderer needed
-Elements | PowerPoint import | ✅ | ⬜ | Local slide renderer needed
-Selection | Box multi-select | ✅ | ✅ | Marquee
-Selection | Lasso select | ✅ | ✅ | Freeform polygon selection
-Editing | Move / resize | ✅ | ✅ | Object-specific controls
-Editing | Rotate | ✅ | 🟡 | Handle + inspector, some resize limits
-Editing | Group / ungroup | ✅ | ✅ | Persists in JSON backup
-Editing | Align multiple objects | ✅ | ✅ | Six align modes
-Editing | Copy/paste/duplicate | ✅ | ✅ | In-app object clipboard
-Editing | Bring front/send back | ✅ | ✅ | Supported
-Editing | Undo/redo | ✅ | ✅ | 80 object snapshots
-Templates | Brainstorm/Kanban/SWOT/mindmap | ✅ | ✅ | Plus retro and lesson
-Templates | Large template library | ✅ | 🟡 | Six starters
-Storage | Multiple boards/gallery/search | ✅ | ✅ | Local IndexedDB
-Storage | Autosave | ✅ | 🟡 | Built; Windows persistence smoke needed
-Storage | Editable import/export backup | Other format | ✅ | .bosha.json
-Storage | Import Microsoft .whiteboard | Native | ⬜ | Not compatible
-Export | PNG | ✅ | ✅ | Local render
-Export | SVG vector | Varies | ✅ | Local render
-Export | PDF | Varies | ✅ | Single flattened A4 page
-Collaboration | Live multi-editor | ✅ | ⬜ | No sync backend
-Collaboration | Live cursors | ✅ | ⬜ | Not built
-Collaboration | Invite links/roles | ✅ | ⬜ | Not built
-Collaboration | Teams integration | ✅ | ➖ | Independent product
-Privacy | No telemetry | Varies | ✅ | No analytics/remote requests
-Release | Signed stable Windows binary | Retired | ⬜ | Windows packaging still pending
-Release | Portable EXE/NSIS build scripts | N/A | 🟡 | CI definition present
-Quality | Automated model tests | Internal | ✅ | 15 checks passed; advanced isolated browser smoke tested
+## Remaining prioritized milestones
 
-## Work completed in v0.2
-
-Added lasso, grouping, alignment, snap, rotation, visual ruler, pressure-aware ink strokes, partial eraser, two-headed arrows, single-page PDF export and 9 additional model/PDF tests.
-
-## Not finished
-
-Native PDF and PowerPoint import; collaborative live editing/cursors/roles; accurate hardware-pen and Windows persistence verification; Android app; a tested and signed Windows release.
+1. **v0.3 acceptance:** Install on Windows, validate native save/recovery and old-board migration, PDF import (scanned & text), touch + stylus, and verify release artifacts.
+2. **v0.3→v0.4 update test:** Publish two signed NSIS releases with `latest.yml` and blockmaps, measure actual transferred bytes and fallback behavior; test no silent install, no data loss.
+3. **v0.4 usability:** Improve PDF page layout, multipage PDF export, robust native templates, ruler-guided ink, better stylus pressure and large-canvas performance.
+4. **v0.5+:** Secure opt-in local-network collaboration / edit & viewer roles, eventual Android client, Microsoft file migration if format access is viable.
 
 ## Sources
 
 - https://support.microsoft.com/en-us/whiteboard/retirement-standalone-microsoft-whiteboard-apps
 - https://support.microsoft.com/en-us/whiteboard/draw-and-ink-in-whiteboard
 - https://support.microsoft.com/en-us/whiteboard/whiteboard-create-panel
-- https://support.microsoft.com/en-us/whiteboard/use-ruler-and-enhance-shapes-in-whiteboard
-- https://support.microsoft.com/en-us/whiteboard/use-mouse-keyboard-and-pen-in-whiteboard
+- https://www.electron.build/v26/docs/nsis/
+- https://www.electron.build/v26/docs/features/auto-update/

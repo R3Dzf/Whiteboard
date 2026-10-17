@@ -131,6 +131,37 @@
       translate(o,(target??r.x)-r.x,(targetY??r.y)-r.y);});return true;
   }
   function snapPoint(p,step=24){return {x:Math.round(p.x/step)*step,y:Math.round(p.y/step)*step};}
+  // Conservative shape recognition: only offer conversion for convincing ink.
+  function recognizeInkStroke(stroke){
+    if(stroke?.type!=='stroke'||!Array.isArray(stroke.points)||stroke.points.length<3)return null;
+    const points=stroke.points.map(p=>[p[0],p[1]]);
+    const r=rectFor(stroke),span=Math.max(r.w,r.h),minor=Math.min(r.w,r.h);
+    if(span<32)return null;
+    const start=points[0],end=points[points.length-1];
+    const length=Math.hypot(end[0]-start[0],end[1]-start[1]);
+    const closed=length<Math.max(18,span*.16);
+    const as=(type)=>({type,x:r.x,y:r.y,w:r.w,h:r.h,color:stroke.color,thickness:stroke.thickness||3,fill:'#ffffff'});
+    if(!closed){
+      if(length<30)return null;
+      const maxDev=Math.max(...points.map(p=>distanceSegment(p,start,end)));
+      if(maxDev<Math.max(6,length*.085))return {...as('line'),x:start[0],y:start[1],w:end[0]-start[0],h:end[1]-start[1]};
+      return null;
+    }
+    if(minor<24)return null;
+    const cx=r.x+r.w/2,cy=r.y+r.h/2;
+    const radial=points.map(([x,y])=>Math.hypot((x-cx)/Math.max(r.w/2,1),(y-cy)/Math.max(r.h/2,1)));
+    const circleDev=radial.reduce((v,n)=>v+Math.abs(n-1),0)/radial.length;
+    const edgeDev=points.reduce((v,[x,y])=>v+Math.min(Math.abs(x-r.x),Math.abs(x-r.x-r.w),Math.abs(y-r.y),Math.abs(y-r.y-r.h)),0)/points.length;
+    const near=[false,false,false,false];for(const [x,y] of points){
+      if(Math.abs(x-r.x)<minor*.16)near[0]=true;
+      if(Math.abs(x-r.x-r.w)<minor*.16)near[1]=true;
+      if(Math.abs(y-r.y)<minor*.16)near[2]=true;
+      if(Math.abs(y-r.y-r.h)<minor*.16)near[3]=true;
+    }
+    if(circleDev<.12)return as('ellipse');
+    if(edgeDev<minor*.105&&near.every(Boolean))return as('rect');
+    return null;
+  }
   const escapeXml = (str) => String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
   const textLines = (text, chars = 26) => {
     const lines = [];
@@ -147,7 +178,7 @@
     }
     return lines.slice(0, 100);
   };
-  const api = { clone, uid, emptyBoard, normalizeBoard, rectFor, bounds, hit, translate, resize, escapeXml, textLines, distanceSegment, isPointInPolygon, lassoHits, eraseStroke, expandGrouped, groupObjects, ungroupObjects, alignObjects, snapPoint };
+  const api = { clone, uid, emptyBoard, normalizeBoard, rectFor, bounds, hit, translate, resize, escapeXml, textLines, distanceSegment, isPointInPolygon, lassoHits, eraseStroke, expandGrouped, groupObjects, ungroupObjects, alignObjects, snapPoint, recognizeInkStroke };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.WhiteboardModel = api;
 })(typeof window === 'undefined' ? globalThis : window);

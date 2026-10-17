@@ -1,4 +1,4 @@
-/* Bosha Whiteboard — no cloud account, tracking, CDN or runtime dependency. */
+/* Inklume — local-first creative canvas. PDF.js and electron-updater are bundled locally. */
 (() => {
 'use strict';
 const M = window.WhiteboardModel;
@@ -43,9 +43,28 @@ const boardStore = {
       req.onerror=()=>{toast('Local storage unavailable — export your work');resolve();};
     });
   },
-  all() { return new Promise(resolve=>{ if(!db)return resolve([]); const tx=db.transaction('boards','readonly'); const r=tx.objectStore('boards').getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>resolve([]);}); },
-  put(board) { return new Promise((resolve,reject)=>{if(!db)return reject(new Error('Offline storage unavailable'));const tx=db.transaction('boards','readwrite');tx.objectStore('boards').put(M.clone(board));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);}); },
-  remove(id) { return new Promise((resolve,reject)=>{if(!db)return reject(new Error('Offline storage unavailable'));const tx=db.transaction('boards','readwrite');tx.objectStore('boards').delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);}); }
+  indexedAll() { return new Promise(resolve=>{ if(!db)return resolve([]); const tx=db.transaction('boards','readonly'); const r=tx.objectStore('boards').getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>resolve([]);}); },
+  async all() {
+    const indexed=await this.indexedAll(), native=window.inklumeDesktop;
+    if(!native)return indexed;
+    let disk=[];try{disk=await native.loadBoards();}catch(err){console.warn('Native storage unavailable',err);}
+    const combined=new Map();
+    for(const b of [...disk,...indexed])if(b&&typeof b.id==='string'&&Array.isArray(b.objects)){
+      if(!combined.has(b.id)||(Number(b.updatedAt)||0)>(Number(combined.get(b.id).updatedAt)||0))combined.set(b.id,b);
+    }
+    // Upgrade from v0.2 IndexedDB without losing existing board identifiers.
+    for(const b of indexed)if(!disk.some(d=>d.id===b.id)&&native.saveBoard)await native.saveBoard(b).catch(console.warn);
+    return [...combined.values()];
+  },
+  async indexedPut(board) {if(!db)return;return new Promise((resolve,reject)=>{const tx=db.transaction('boards','readwrite');tx.objectStore('boards').put(M.clone(board));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});},
+  async indexedRemove(id) {if(!db)return;return new Promise((resolve,reject)=>{const tx=db.transaction('boards','readwrite');tx.objectStore('boards').delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});},
+  async put(board) {
+    // Main process writes snapshots atomically to app userData; legacy IndexedDB remains as backup.
+    const native=window.inklumeDesktop;
+    if(native){await native.saveBoard(M.clone(board));await this.indexedPut(board).catch(err=>console.warn('Secondary IndexedDB write failed',err));return;}
+    if(!db)throw new Error('No available local storage');await this.indexedPut(board);
+  },
+  async remove(id) {const native=window.inklumeDesktop;if(native)await native.removeBoard(id);await this.indexedRemove(id);}
 };
 function scheduleSave() {
   if(!active)return;
@@ -56,7 +75,7 @@ function scheduleSave() {
     catch(e){setStatus('⚠ Not saved'); toast('Save failed. Export a backup!'); console.error(e);}
   },480);
 }
-async function flushSave(){clearTimeout(saveTimer);if(active){try{await boardStore.put(active);setStatus('● Saved locally');}catch(e){toast('Unable to save. Export backup.');}}}
+async function flushSave(){clearTimeout(saveTimer);if(active){try{await boardStore.put(M.clone(active));setStatus('● Saved locally');}catch(e){toast('Unable to save. Export backup.');}}}
 function snapshot() {
   if(!active)return;
   undoStack.push(JSON.stringify(active.objects));if(undoStack.length>80)undoStack.shift();redoStack=[];updateHistoryButtons();
@@ -325,6 +344,13 @@ function updateInspector() {
   if(showText&&o.type!=='emoji'){
     const fs=document.createElement('input');fs.type='number';fs.min=10;fs.max=90;fs.value=o.fontSize||20;fs.onchange=()=>updateStyle('fontSize',clamp(Number(fs.value),10,90));makeControl('Font size',fs);
   }
+  if(o.type==='stroke'){
+    const shape=M.recognizeInkStroke(o);
+    if(shape){const btn=document.createElement('button');btn.className='soft-btn';btn.textContent=`Convert ink to ${shape.type}`;
+      btn.onclick=()=>{snapshot();Object.assign(o,shape);delete o.points;delete o.highlight;render();scheduleSave();toast('Ink converted to '+shape.type);};
+      body.appendChild(btn);
+    }
+  }
   if(o.type!=='stroke'){
     const rot=document.createElement('input');rot.type='number';rot.min=0;rot.max=359;rot.step=1;rot.value=Math.round(o.rotation||0);
     rot.onchange=()=>updateStyle('rotation',((Number(rot.value)%360)+360)%360);makeControl('Rotation (degrees)',rot);
@@ -381,7 +407,7 @@ function settingsDialog(){if(!active)return;openDialog('Canvas appearance',`<lab
 function centerWorld(){const canvas=$('canvas'),v=getView();return [(canvas.clientWidth/2-v.x)/v.zoom,(canvas.clientHeight/2-v.y)/v.zoom];}
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);}
 const safeFilename=name=>String(name).replace(/[^\w\-. ]/g,'_').slice(0,75)||'whiteboard';
-function exportJson(){if(!active)return;downloadBlob(new Blob([JSON.stringify({...active,format:'bosha-whiteboard',formatVersion:1},null,2)],{type:'application/json'}),safeFilename(active.name)+'.bosha.json');toast('Board backup exported');}
+function exportJson(){if(!active)return;downloadBlob(new Blob([JSON.stringify({...active,format:'bosha-whiteboard',formatVersion:1},null,2)],{type:'application/json'}),safeFilename(active.name)+'.inklume.json');toast('Board backup exported');}
 function exportSvg(){const {svg}=makeExport();downloadBlob(new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml'}),safeFilename(active.name)+'.svg');}
 function makeExport(){const b=M.bounds(active.objects),pad=40,r={x:b.x-pad,y:b.y-pad,w:Math.max(640,b.w+pad*2),h:Math.max(440,b.h+pad*2)};
   const svg=el('svg',{xmlns:svgNS,width:Math.ceil(r.w),height:Math.ceil(r.h),viewBox:`${r.x} ${r.y} ${r.w} ${r.h}`});
@@ -420,7 +446,66 @@ async function exportPdf(){
     toast('PDF exported (one printable page)');
   }catch(e){toast('PDF export failed: '+e.message);console.error(e);}finally{URL.revokeObjectURL(url);}
 }
-function exportDialog(){if(!active)return;openDialog('Export your whiteboard','<div class="export-opts"><button id="expPdf">PDF document <span>Single printable A4 page</span></button><button id="expPng">PNG image <span>High-resolution image</span></button><button id="expSvg">SVG vector <span>Scalable graphics</span></button><button id="expJson">Board backup <span>Editable .bosha.json format</span></button></div><p>Your editable backup can be imported on another device.</p>');$('expPdf').onclick=()=>{closeDialog();exportPdf();};$('expPng').onclick=()=>{closeDialog();exportPng();};$('expSvg').onclick=()=>{closeDialog();exportSvg();};$('expJson').onclick=()=>{closeDialog();exportJson();};}
+function exportDialog(){if(!active)return;openDialog('Export your whiteboard','<div class="export-opts"><button id="expPdf">PDF document <span>Single printable A4 page</span></button><button id="expPng">PNG image <span>High-resolution image</span></button><button id="expSvg">SVG vector <span>Scalable graphics</span></button><button id="expJson">Board backup <span>Editable .inklume.json format</span></button></div><p>Your editable backup can be imported on another device.</p>');$('expPdf').onclick=()=>{closeDialog();exportPdf();};$('expPng').onclick=()=>{closeDialog();exportPng();};$('expSvg').onclick=()=>{closeDialog();exportSvg();};$('expJson').onclick=()=>{closeDialog();exportJson();};}
+
+// Import PDF pages into the board as separate movable and annotatable images.
+// pdfjs-dist is bundled into the desktop app and never loaded from a CDN.
+async function importPdf(file){
+  if(!file || !active)return;
+  if(file.size>20*1024*1024){toast('PDF exceeds 20 MB limit');return;}
+  setStatus('◌ Importing PDF…');
+  try{
+    const pdfjs=await import(new URL('node_modules/pdfjs-dist/build/pdf.mjs',document.baseURI).href);
+    pdfjs.GlobalWorkerOptions.workerSrc=new URL('node_modules/pdfjs-dist/build/pdf.worker.mjs',document.baseURI).href;
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const loading=pdfjs.getDocument({data:bytes,stopAtErrors:true});
+    const pdf=await loading.promise;
+    if(pdf.numPages>12){await pdf.destroy();throw new Error('Limit is 12 pages per import; split larger PDFs first');}
+    const objects=[];const [cx,cy]=centerWorld();let x=cx-390,y=cy-100,widest=0;
+    for(let i=1;i<=pdf.numPages;i++){
+      const page=await pdf.getPage(i);
+      const scale=Math.min(1.6,1100/page.getViewport({scale:1}).width);
+      const viewport=page.getViewport({scale});
+      const canv=document.createElement('canvas');canv.width=Math.ceil(viewport.width);canv.height=Math.ceil(viewport.height);
+      await page.render({canvasContext:canv.getContext('2d',{alpha:false}),viewport}).promise;
+      const src=canv.toDataURL('image/jpeg',.82);
+      if(src.length>10_000_000)throw new Error('Page image too large');
+      const width=viewport.width,height=viewport.height;
+      objects.push({...newObject('image',{x,y}),x,y,w:width,h:height,src});
+      objects.push({...newObject('text',{x,y:y+height+9}),w:width,h:25,text:`${file.name} · Page ${i}/${pdf.numPages}`,fontSize:13,color:'#64748b'});
+      x+=width+44;widest=Math.max(widest,width);
+      if(i%3===0){x=cx-390;y+=height+90;}
+    }
+    await pdf.destroy();
+    if(!active)throw new Error('Board closed during PDF import');
+    snapshot();active.objects.push(...objects);selected=new Set(objects.map(o=>o.id));setTool('select');render();scheduleSave();
+    toast(`Imported ${objects.length/2} PDF page(s) · annotate or rearrange`);
+  }catch(err){console.error(err);toast('PDF import: '+(err?.message||'Could not open PDF'));}
+  finally{setStatus('● Ready');}
+}
+function importAny(file){if(!file)return;if(file.type==='application/pdf'||/\.pdf$/i.test(file.name))return importPdf(file);return importBoard(file);}
+function updateDialog(){
+  if(!window.inklumeDesktop){toast('App updates are available in installed Windows versions');return;}
+  openDialog('Inklume updates','<p class="update-state" id="updateMessage">No automatic installation. Check manually when you are ready.</p><progress id="updateProgress" class="update-meter" value="0" max="100" hidden></progress>',[
+    {text:'Close'},
+    {text:'Check for updates',primary:true,click:async()=>{const status=await window.inklumeDesktop.checkUpdates();setUpdateStatus(status);return false;}}
+  ]);
+  window.inklumeDesktop.getUpdateStatus().then(setUpdateStatus).catch(()=>{});
+}
+function setUpdateStatus(status){
+  if(!status || $('dialogBackdrop').hidden || $('dialogTitle').textContent!=='Inklume updates')return;
+  const msg=$('updateMessage');if(!msg)return;
+  const labels={disabled:'Updates are supported on the installed Windows build.',checking:'Checking GitHub Releases…',available:`Version ${status.version} is ready to download.`,downloading:`Downloading update ${Math.round(status.percent||0)}% · ${Math.round((status.transferred||0)/1024/1024)} MB / ${Math.round((status.total||0)/1024/1024)} MB`,downloaded:'Update downloaded and verified. Restart to install.',current:'You have the latest version.',error:`Update failed: ${status.error||'Unknown error'}`,idle:'Check GitHub Releases for a newer version.'};
+  msg.textContent=labels[status.state]||status.state;
+  const prog=$('updateProgress');prog.hidden=status.state!=='downloading';if(!prog.hidden)prog.value=status.percent||0;
+  const actions=$('dialogActions');const existing=$('updateAction');if(existing)existing.remove();
+  if(status.state==='available'||status.state==='downloaded'){
+    const btn=document.createElement('button');btn.className='primary-btn';btn.id='updateAction';btn.textContent=status.state==='available'?'Download update':'Restart & install';
+    btn.onclick=async()=>{try{status.state==='available'?await window.inklumeDesktop.downloadUpdate():await window.inklumeDesktop.installUpdate();}catch(err){toast(err.message||'Update error');}};
+    actions.appendChild(btn);
+  }
+}
+
 async function importBoard(file){if(!file)return;if(file.size>14*1024*1024){toast('File too large (14 MB limit)');return;}
   try{const b=M.normalizeBoard(JSON.parse(await file.text()));documents.set(b.id,b);await boardStore.put(b);closeDialog();await openBoard(b.id);toast('Board imported successfully');}catch(err){toast('Could not import board: '+err.message);}}
 async function imageFile(file){if(!file||!active||!/^image\/(png|jpeg|webp|gif)$/.test(file.type)){toast('Choose a PNG, JPG, WebP or GIF');return;}if(file.size>4*1024*1024){toast('Image exceeds 4 MB limit');return;}
@@ -452,9 +537,9 @@ function setupEvents(){
   document.querySelectorAll('#contextMenu button').forEach(b=>b.onclick=()=>{const action=b.dataset.action;const obj=active.objects.find(o=>selected.has(o.id));$('contextMenu').hidden=true;if(action==='edit')editObject(obj);if(action==='delete')deleteSelected();if(action==='duplicate')duplicateSelected();if(action==='group')groupSelected();if(action==='ungroup')ungroupSelected();if(action==='front'||action==='back')layer(action);});
   document.addEventListener('pointerdown',e=>{if(!e.target.closest('#contextMenu')&&!e.target.closest('#canvas'))$('contextMenu').hidden=true;});
   $('strokeWidth').oninput=e=>{width=Number(e.target.value);$('strokeWidthValue').textContent=width;};$('moreColors').onclick=()=>$('colorInput').click();$('colorInput').oninput=e=>{ink=e.target.value;renderColors();if(selected.size)updateStyle('color',ink);};
-  $('imageTool').onclick=()=>$('fileInput').click();$('fileInput').onchange=e=>{imageFile(e.target.files[0]);e.target.value='';};$('reactionTool').onclick=reactions;$('snapToggle').onchange=e=>{snapEnabled=e.target.checked;toast(snapEnabled?'Grid snapping enabled':'Grid snapping disabled');};setupRuler();
+  $('imageTool').onclick=()=>$('fileInput').click();$('fileInput').onchange=e=>{const f=e.target.files[0];if(f && (f.type==='application/pdf'||/\.pdf$/i.test(f.name)))importPdf(f);else imageFile(f);e.target.value='';};$('reactionTool').onclick=reactions;$('snapToggle').onchange=e=>{snapEnabled=e.target.checked;toast(snapEnabled?'Grid snapping enabled':'Grid snapping disabled');};setupRuler();
   $('homeBtn').onclick=gallery;$('newBoardBtn').onclick=createBoard;$('boardTitle').onclick=()=>{if(active)textPrompt('Rename whiteboard',active.name,name=>{active.name=name;render();scheduleSave();});};
-  $('boardSearch').oninput=renderGallery;$('templatesBtn').onclick=templatesDialog;$('hintTemplate').onclick=templatesDialog;$('boardSettingsBtn').onclick=settingsDialog;$('importBtn').onclick=()=>$('boardInput').click();$('boardInput').onchange=e=>{importBoard(e.target.files[0]);e.target.value='';};$('exportBtn').onclick=exportDialog;
+  $('boardSearch').oninput=renderGallery;$('templatesBtn').onclick=templatesDialog;$('hintTemplate').onclick=templatesDialog;$('boardSettingsBtn').onclick=settingsDialog;$('importBtn').onclick=()=>$('boardInput').click();$('boardInput').onchange=e=>{importAny(e.target.files[0]);e.target.value='';};$('updateBtn').onclick=updateDialog;$('exportBtn').onclick=exportDialog;
   $('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('zoomInBtn').onclick=()=>zoom(1.2);$('zoomOutBtn').onclick=()=>zoom(1/1.2);$('zoomDisplay').onclick=()=>{active.view.zoom=1;render();scheduleSave();};$('fitBtn').onclick=fitObjects;$('rulerBtn').onclick=toggleRuler;$('closeInspector').onclick=()=>{selected.clear();render();};
   $('dialogClose').onclick=closeDialog;$('dialogBackdrop').onclick=e=>{if(e.target===$('dialogBackdrop'))closeDialog();};
   document.addEventListener('keydown',e=>{
@@ -485,6 +570,10 @@ function setupEvents(){
     const img=[...e.clipboardData?.items||[]].find(i=>i.type.startsWith('image/'));
     if(img){e.preventDefault();imageFile(img.getAsFile());}
   });
+  $('canvasHost').addEventListener('dragover',e=>{if(e.dataTransfer?.types?.includes('Files')){e.preventDefault();$('canvasHost').classList.add('drop-active');}});
+  $('canvasHost').addEventListener('dragleave',()=>{$('canvasHost').classList.remove('drop-active');});
+  $('canvasHost').addEventListener('drop',e=>{e.preventDefault();$('canvasHost').classList.remove('drop-active');const f=e.dataTransfer?.files?.[0];if(!f)return;if(f.type==='application/pdf'||/\.pdf$/i.test(f.name))importPdf(f);else if(f.type.startsWith('image/'))imageFile(f);else if(/\.(bosha|inklume)\.json$/i.test(f.name))importBoard(f);else toast('Drop an image, PDF, or board backup');});
+  if(window.inklumeDesktop?.onUpdateStatus)window.inklumeDesktop.onUpdateStatus(setUpdateStatus);
   window.addEventListener('beforeunload',()=>{if(active&&db){try{const t=db.transaction('boards','readwrite');t.objectStore('boards').put(M.clone(active));}catch(e){}}});
   window.addEventListener('resize',()=>{if(active)render();});
 }

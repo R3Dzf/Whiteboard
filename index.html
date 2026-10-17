@@ -4,19 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
-  <title>Bosha Whiteboard</title>
+  <title>Inklume — Creative Whiteboard</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="stylesheet" href="src/style.css" />
 </head>
 <body>
   <div id="app">
     <header class="topbar">
-      <button id="homeBtn" class="logo-button" title="All boards" aria-label="All boards"><span class="brand-mark">✳</span></button>
-      <div class="brand-text"><strong>Bosha</strong><span>Whiteboard</span></div>
+      <button id="homeBtn" class="logo-button" title="All boards" aria-label="All boards"><img class="brand-icon" src="assets/favicon.png" alt="" /></button>
+      <div class="brand-text"><strong>Inklume</strong><span>Creative canvas</span></div>
       <div class="top-divider"></div>
       <button id="boardTitle" class="board-title" title="Rename board">Untitled board <span>⌄</span></button>
       <div class="save-pill" id="saveStatus">● Saved locally</div>
       <div class="top-grow"></div>
       <button id="templatesBtn" class="head-btn">▦ <span>Templates</span></button>
+      <button id="updateBtn" class="head-btn" title="Check for app updates">⟳ <span>Updates</span></button>
       <button id="boardSettingsBtn" class="head-btn">⚙ <span>Canvas</span></button>
       <button id="importBtn" class="head-btn">↥ <span>Import</span></button>
       <button id="exportBtn" class="primary-btn">↗ <span>Export</span></button>
@@ -49,7 +51,7 @@
           <g id="world"><g id="items"></g><g id="selectionOverlays"></g><g id="preview"></g></g>
           <g id="laserLayer"></g>
         </svg>
-        <div id="emptyHint" class="empty-hint"><div class="empty-icon">✳</div><h2>Your canvas is ready</h2><p>Draw an idea, add a sticky note, or choose a template.</p><button id="hintTemplate" class="small-primary">Explore templates →</button></div>
+        <div id="emptyHint" class="empty-hint"><div class="empty-icon">✳</div><h2>Your ideas belong here</h2><p>Draw an idea, add a sticky note, or choose a template.</p><button id="hintTemplate" class="small-primary">Explore templates →</button></div>
         <div id="contextMenu" class="context-menu" hidden>
           <button data-action="edit">✎ Edit text</button><button data-action="duplicate">▢ Duplicate</button>
           <button data-action="group">⌘ Group selection</button><button data-action="ungroup">⌁ Ungroup</button>
@@ -87,7 +89,7 @@
         <div class="gallery-header"><div><span class="eyebrow">YOUR WORKSPACE</span><h1>Make space for ideas<span class="accent-dot">.</span></h1><p>Your boards stay on this device. No account required.</p></div><button id="newBoardBtn" class="primary-btn large">＋ New whiteboard</button></div>
         <div class="gallery-toolbar"><h2>My whiteboards <span id="boardCount"></span></h2><input id="boardSearch" placeholder="⌕  Search boards" aria-label="Search boards" /></div>
         <div id="boardCards" class="board-grid"></div>
-        <div class="gallery-footer">Bosha Whiteboard · Free & offline-first <span>Import and export .bosha.json to back up or move your boards.</span></div>
+        <div class="gallery-footer">Inklume · Free & offline-first <span>Import and export .inklume.json to back up or move your boards.</span></div>
       </div>
     </section>
   </div>
@@ -98,8 +100,8 @@
       <div id="dialogActions" class="dialog-actions"></div>
     </div>
   </div>
-  <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
-  <input id="boardInput" type="file" accept=".json,.bosha.json,application/json" hidden />
+  <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,.pdf,application/pdf" hidden />
+  <input id="boardInput" type="file" accept=".json,.bosha.json,.inklume.json,.pdf,application/pdf,application/json" hidden />
   <input id="colorInput" type="color" value="#334155" hidden />
   <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
   <script src="src/model.js"></script>

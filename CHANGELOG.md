@@ -1,9 +1,25 @@
 # Changelog
 
-## v0.2.0 — 2026-10-17
+## 0.2.0 — 2026-10-17
 
-Lasso selection; grouping and alignment; visual ruler; rotation; snap to grid; two-headed arrows; pressure strokes; partial ink eraser; single-page PDF export; 15 automated tests.
+- Freeform lasso and persistent group/ungroup.
+- Alignment commands and optional snap-to-grid.
+- Rotate handle and inspector angle, including rotation-aware hit testing.
+- Pressure-responsive strokes, non-destructive-in-place partial eraser, double-headed arrows.
+- Move/rotate ruler overlay.
+- One-page flattened PDF document export, no runtime PDF library.
+- Input validation updates, 9 new test cases and advanced headless browser smoke test.
 
-## v0.1.0 — 2026-10-17
+## 0.1.0 — 2026-10-17
 
-Initial canvas, gallery, drawing tools, note templates and PNG/SVG/JSON export.
+- Initial SVG infinite-canvas board and Electron Windows project.
+- Local gallery, templates, notes, drawing, image insertion and JSON/PNG/SVG export.
+
+## v0.3.0 — Inklume beta source (2026-10-17)
+
+- Rebrand to **Inklume**, new expressive app icon (ICO, PNG, favicon) and Windows metadata. Old app ID and profile preserved for upgrade compatibility.
+- Add native atomic on-disk board snapshots, previous-revision `.bak` recovery, dual IndexedDB compatibility and defensive data bounds.
+- Integrate local PDF.js rendering into board-image import (up to 12 pages / 20MB) and drag/drop images/PDF; installed dependency and Windows PDF tests pending.
+- Add conservative **Convert ink to shape** action for strokes, rectangles and ellipses.
+- Add opt-in updater UI, `electron-updater` version-check/download/restart and progress, GitHub feed and NSIS `store-asar` blockmap configuration for future differential updates.
+- Increase unit tests from 15 to 21, including recovery, update flow and ink recognizer. Windows build and two-release delta integration test still pending.
