@@ -176,10 +176,10 @@ public sealed class BoardCanvas : Control
                 var pts = e.Points;
                 for (var i = 1; i < pts.Count; i++)
                 {
-                    var a = pts[i-1]; var b = pts[i];
-                    var pressure = Math.Clamp((a.Pressure + b.Pressure) / 2, .1f, 1f);
+                    var sampleFrom = pts[i-1]; var sampleTo = pts[i];
+                    var pressure = Math.Clamp((sampleFrom.Pressure + sampleTo.Pressure) / 2, .1f, 1f);
                     var width = Math.Max(.65, thickness * (.45 + pressure * .9));
-                    ctx.DrawLine(SegmentPen(e.Color, width), Screen(a), Screen(b));
+                    ctx.DrawLine(SegmentPen(e.Color, width), Screen(sampleFrom), Screen(sampleTo));
                 }
                 if (pts.Count == 1) ctx.DrawEllipse(stroke, null, Screen(pts[0]), thickness / 2, thickness / 2);
                 break;
