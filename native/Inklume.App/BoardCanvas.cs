@@ -70,12 +70,12 @@ public sealed class BoardCanvas : Control
         }
 
         var visible = View.Visible(Bounds.Width, Bounds.Height).Inflate(30 / zoom);
-        var indexed = Engine.Visible(visible).Select(e => e.Id).ToHashSet();
-        // Dragged / just-created elements are not indexed until pointer-up.
-        if (_activeElement != null) indexed.Add(_activeElement.Id);
-        if (_movingElement != null) indexed.Add(_movingElement.Id);
-        foreach (var obj in Engine.Document.Elements)
-            if (indexed.Contains(obj.Id) && (obj.Bounds.Intersects(visible) || obj == _activeElement || obj == _movingElement))
+        var candidates = Engine.Visible(visible).ToList();
+        // The just-created/moving element is not in the spatial index until pointer-up.
+        if (_activeElement != null && candidates.All(x => x.Id != _activeElement.Id)) candidates.Add(_activeElement);
+        if (_movingElement != null && candidates.All(x => x.Id != _movingElement.Id)) candidates.Add(_movingElement);
+        foreach (var obj in candidates)
+            if (obj.Bounds.Intersects(visible) || obj == _activeElement || obj == _movingElement)
                 DrawElement(context, obj);
 
         if (SelectedId != null)
