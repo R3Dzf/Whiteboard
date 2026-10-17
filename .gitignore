@@ -1,5 +1,8 @@
-node_modules/
-release/
+**/bin/
+**/obj/
+.vs/
+.idea/
 dist/
+*.user
+*.tmp
 *.log
-.DS_Store
