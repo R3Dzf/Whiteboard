@@ -4,7 +4,7 @@ namespace Inklume.Core;
 
 public sealed class BoardStore(string directory)
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = false, PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions Options = new() { WriteIndented = false, PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     public string DirectoryPath { get; } = directory;
 
     public void Save(BoardDocument board)
