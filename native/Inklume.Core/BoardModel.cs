@@ -92,4 +92,12 @@ public sealed class BoardViewport
         OffsetY = screenY - anchor.Y * Zoom;
     }
     public void Reset() { Zoom = 1; OffsetX = OffsetY = 0; }
+    public void SetFit(WorldRect bounds, double width, double height)
+    {
+        if (width <= 0 || height <= 0) return;
+        Zoom = Math.Clamp(Math.Min((width - 100) / Math.Max(1, bounds.Width),
+            (height - 100) / Math.Max(1, bounds.Height)), .1, 8);
+        OffsetX = width / 2 - (bounds.X + bounds.Width / 2) * Zoom;
+        OffsetY = height / 2 - (bounds.Y + bounds.Height / 2) * Zoom;
+    }
 }

@@ -1,43 +1,24 @@
-# Inklume Native Rewrite
+# Inklume Native
 
-**Avalonia 12 / C# / .NET 10 — Phase 1 implementation**
+A native Windows whiteboard prototype built with Avalonia UI, C# and the Skia-backed Avalonia renderer. Inklume replaces the old SVG/DOM-per-movement approach with a single drawing visual and a spatial index.
 
-This branch develops the next-generation desktop engine in `native/` while the existing Electron v0.3.0 remains untouched on `main`.
+## Current capabilities
 
-## Why rewrite?
+Infinite canvas, pen and marker pressure samples, partial eraser, rectangles, ellipses, lines, arrows, sticky notes and text, selectable and movable objects, multi-selection, duplicating and deleting, zoom/pan/fit, light and dark canvas backgrounds, a multi-board sidebar, editable titles, raster image import/display, undo/redo, resilient local board storage and explicit import of legacy JSON exports.
 
-The earlier editor replaced the entire SVG element subtree on every pen move. The native preview uses a single Avalonia-rendered control (Skia renderer) and queries a spatial hash for visible objects. This eliminates per-object DOM reconstruction. It does **not** by itself prove a particular FPS or input latency; physical-device profiling remains necessary.
+This is an **engineering preview**, not a stable release. Running tests does not demonstrate real-world drawing latency or flawless interaction on every screen/digitizer.
 
-## Implemented in this native prototype
-
-- C# board schema with ink samples including pressure and tilt.
-- Skia-backed Avalonia custom-drawn canvas: strokes, rects, ellipses, text, notes, lines.
-- Pen, marker, shape, selection/move, hand/pan and eraser tools.
-- Pointer-centric zoom anchored at cursor, pan, basic selection and hit testing.
-- Spatial hashing to reduce candidate objects for rendering and selection.
-- Atomic JSON snapshots with last-good backups, autosave debounce, history undo/redo.
-- Migration of supported shapes and ink from old `.bosha.json` / Electron board exports. Legacy embedded image data is **retained** in documents but not yet rendered.
-- Automated core smoke tests and Windows CI compile/publish workflow.
-
-## Run from source
-
-Install the .NET 10 SDK. Avalonia and its NuGet dependencies are restored automatically.
+## Windows build
 
 ```powershell
-cd native
-dotnet run --project Inklume.App/Inklume.App.csproj
+dotnet restore native/Inklume.App/Inklume.App.csproj
+dotnet run --project native/Inklume.App/Inklume.App.csproj
+dotnet run --project native/Inklume.SmokeTests/Inklume.SmokeTests.csproj -c Release
+dotnet publish native/Inklume.App/Inklume.App.csproj -c Release -r win-x64 --self-contained true
 ```
 
-Run the tests:
+Source: [`native/Inklume.App`](native/Inklume.App). Core model and geometry: [`native/Inklume.Core`](native/Inklume.Core). All dependencies are open source. This project does not require any paid APIs.
 
-```powershell
-dotnet run --project native/Inklume.SmokeTests/Inklume.SmokeTests.csproj
-```
+## Limitations
 
-The app stores native board files under `%APPDATA%\Inklume\Boards`. **It does not delete, overwrite, or auto-convert the Electron app's old data.** Use Import and select a backup file; imported boards get new IDs. Back up any important boards before trying prerelease software.
-
-## Known gaps
-
-This is an architectural preview, not a replacement for the older app: native PDF import, images on canvas, multiple-board gallery, rich formatting, lasso, multi-touch pinch, advanced partial eraser, true crash recovery journal, SQLite, delta update installer, collaboration, and performance profiling are not yet done. A Win-x64 build artifact is **not** a signed installer.
-
-See [`MIGRATION.md`](MIGRATION.md) for the development checklist.
+PDF import, realtime collaboration, full precision lasso, genuine signed installers and delta upgrades are not implemented in the native app. Do not discard your older board files. See [PHASE2.md](PHASE2.md) for work done and the release gate.

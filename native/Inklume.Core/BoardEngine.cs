@@ -51,6 +51,28 @@ public sealed class BoardEngine
 
     public bool Remove(string id) => Document.Elements.RemoveAll(e => e.Id == id) > 0;
 
+    public int RemoveMany(IEnumerable<string> ids)
+    {
+        var selected = ids.ToHashSet(StringComparer.Ordinal);
+        return Document.Elements.RemoveAll(e => selected.Contains(e.Id));
+    }
+
+    public int EraseInk(double x, double y, double radius)
+    {
+        // The index is stable for the lifetime of an edit; erasing repeatedly must
+        // inspect live objects as well as indexed cells since split fragments are new.
+        var changed = 0;
+        var revised = new List<BoardElement>(Document.Elements.Count);
+        foreach (var element in Document.Elements)
+        {
+            var result = InkPipeline.PartialErase(element, x, y, radius);
+            if (result is null) revised.Add(element);
+            else { changed++; revised.AddRange(result); }
+        }
+        if (changed > 0) { Document.Elements.Clear(); Document.Elements.AddRange(revised); }
+        return changed;
+    }
+
     public IEnumerable<BoardElement> Visible(WorldRect world)
     {
         var ids = _index.Query(world);
@@ -71,9 +93,27 @@ public sealed class BoardEngine
             {
                 if (StrokeHit(element.Points, x, y, distance + element.Thickness / 2)) return element;
             }
-            else if (element.Bounds.Inflate(distance).Contains(x, y)) return element;
+            else if (PreciseHit(element, x, y, distance)) return element;
         }
         return null;
+    }
+
+    private static bool PreciseHit(BoardElement element, double x, double y, double padding)
+    {
+        var r = element.Bounds;
+        if (!r.Inflate(padding).Contains(x, y)) return false;
+        if (element.Kind == ElementKind.Ellipse)
+        {
+            var rx = Math.Max(1, r.Width / 2 + padding), ry = Math.Max(1, r.Height / 2 + padding);
+            var dx = (x - (r.X + r.Width / 2)) / rx;
+            var dy = (y - (r.Y + r.Height / 2)) / ry;
+            return dx * dx + dy * dy <= 1;
+        }
+        if (element.Kind is ElementKind.Line or ElementKind.Arrow)
+            return StrokeHit(new[] { new InkPoint(element.X, element.Y),
+                new InkPoint(element.X + element.Width, element.Y + element.Height) },
+                x, y, padding + element.Thickness / 2);
+        return true;
     }
 
     public static bool StrokeHit(IReadOnlyList<InkPoint> points, double x, double y, double radius)

@@ -8,6 +8,9 @@ public static class BoardCodec
     private const int MaxElements = 15000;
     private const int MaxSamples = 200000;
     public static string Write(BoardDocument board) => JsonSerializer.Serialize(board, Options);
+    public static BoardElement CloneElement(BoardElement element) =>
+        JsonSerializer.Deserialize<BoardElement>(JsonSerializer.Serialize(element, Options), Options)
+            ?? throw new InvalidDataException("Unable to duplicate element");
 
     public static BoardDocument Read(string input)
     {

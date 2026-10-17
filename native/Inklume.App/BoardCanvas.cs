@@ -3,262 +3,332 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Inklume.Core;
 
 namespace Inklume.App;
 
-public enum CanvasTool { Pen, Highlighter, Select, Pan, Eraser, Rectangle, Ellipse, Sticky, Text }
+public enum CanvasTool { Select, Pen, Highlighter, Eraser, Hand, Rectangle, Ellipse, Line, Arrow, Sticky, Text }
 
-/// <summary>Single Skia-backed Avalonia visual; no SVG/DOM tree is rebuilt while drawing.
-/// Only spatially visible elements are submitted to the native drawing context.</summary>
+/// <summary>One native drawing surface with viewport culling. Gesture mutations touch only
+/// the active object; the spatial index is rebuilt at transaction boundaries.</summary>
 public sealed class BoardCanvas : Control
 {
+    private static readonly Dictionary<string, IBrush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (string Source, Bitmap Image)> _bitmaps = new();
+    private readonly HashSet<string> _selected = new();
+    private readonly Dictionary<string, BoardElement> _moveOrigins = new();
     public BoardEngine Engine { get; private set; }
     public BoardViewport View { get; } = new();
     public CanvasTool Tool { get; set; } = CanvasTool.Pen;
     public string InkColor { get; set; } = "#283955";
     public double InkWidth { get; set; } = 3;
-    public string? SelectedId { get; private set; }
+    public bool ShowGrid { get; set; } = true;
+    public bool IsDark { get; set; }
+    public IReadOnlyCollection<string> Selection => _selected;
     public event Action? ViewChanged;
+    public event Action? SelectionChanged;
     private BoardElement? _activeElement;
-    private BoardElement? _movingElement;
-    private List<InkPoint>? _originalPoints;
-    private double _startX, _startY, _originalX, _originalY;
     private Point _lastScreen;
-    private bool _dragging, _panning, _changed;
+    private Point _dragOrigin;
+    private WorldRect? _marquee;
+    private bool _dragging, _panning, _changed, _historyStarted, _moving;
 
     public BoardCanvas(BoardEngine engine)
     {
-        Engine = engine;
-        Focusable = true;
-        ClipToBounds = true;
+        Engine = engine; Focusable = true; ClipToBounds = true;
     }
-
     public void ReplaceDocument(BoardDocument board)
     {
-        Engine = new BoardEngine(board);
-        SelectedId = null; View.Reset(); InvalidateVisual(); ViewChanged?.Invoke();
+        ClearBitmapCache(); Engine = new BoardEngine(board); _selected.Clear();
+        View.Reset(); InvalidateVisual(); ViewChanged?.Invoke(); SelectionChanged?.Invoke();
     }
     public void Redraw() => InvalidateVisual();
-    private Point Screen(InkPoint p) { var q = View.ToScreen(p.X, p.Y); return new(q.X, q.Y); }
-    private Point Screen(double x, double y) { var q = View.ToScreen(x, y); return new(q.X, q.Y); }
+    public void SetTool(CanvasTool tool) { Tool = tool; InvalidateVisual(); }
+    public void FitToContent()
+    {
+        var elements = Engine.Document.Elements;
+        if (elements.Count == 0) { View.Reset(); InvalidateVisual(); ViewChanged?.Invoke(); return; }
+        var minX = elements.Min(e => e.Bounds.X), minY = elements.Min(e => e.Bounds.Y);
+        var maxX = elements.Max(e => e.Bounds.Right), maxY = elements.Max(e => e.Bounds.Bottom);
+        var width = Math.Max(1, maxX - minX), height = Math.Max(1, maxY - minY);
+        View.SetFit(new WorldRect(minX, minY, width, height), Bounds.Width, Bounds.Height);
+        InvalidateVisual(); ViewChanged?.Invoke();
+    }
+    public void SelectAll() { _selected.Clear(); foreach (var e in Engine.Document.Elements) _selected.Add(e.Id); SelectionChanged?.Invoke(); InvalidateVisual(); }
+    public bool DeleteSelection()
+    {
+        if (_selected.Count == 0) return false;
+        Engine.BeginEdit(); var count = Engine.RemoveMany(_selected);
+        _selected.Clear(); Engine.CompleteEdit(); SelectionChanged?.Invoke(); InvalidateVisual();
+        return count > 0;
+    }
+    public void UpdateSelectedText(string text)
+    {
+        var targets = Engine.Document.Elements.Where(e => _selected.Contains(e.Id) && e.Kind is ElementKind.Sticky or ElementKind.Text).ToList();
+        if (targets.Count == 0 || targets.All(e => e.Text == text)) return;
+        Engine.BeginEdit(); foreach (var e in targets) e.Text = text[..Math.Min(text.Length, 10_000)];
+        Engine.CompleteEdit(); InvalidateVisual();
+    }
+    public void DuplicateSelection()
+    {
+        if (_selected.Count == 0) return;
+        var copies = Engine.Document.Elements.Where(e => _selected.Contains(e.Id)).Select(e => BoardCodec.CloneElement(e)).ToList();
+        if (copies.Count == 0) return;
+        Engine.BeginEdit(); _selected.Clear();
+        foreach (var item in copies)
+        {
+            item.Id = Guid.NewGuid().ToString("N"); item.X += 30; item.Y += 30;
+            foreach (var p in item.Points) { p.X += 30; p.Y += 30; }
+            Engine.Add(item); _selected.Add(item.Id);
+        }
+        Engine.CompleteEdit(); SelectionChanged?.Invoke(); InvalidateVisual();
+    }
+    private static Point ToScreen(BoardViewport v, double x, double y) { var p = v.ToScreen(x, y); return new(p.X, p.Y); }
+    private Point Screen(InkPoint p) => ToScreen(View, p.X, p.Y);
+    private Point Screen(double x, double y) => ToScreen(View, x, y);
     private Rect ScreenRect(WorldRect b)
     {
-        var origin = Screen(b.X, b.Y);
-        return new Rect(origin.X, origin.Y, Math.Max(1, b.Width * View.Zoom), Math.Max(1, b.Height * View.Zoom));
+        var p = Screen(b.X, b.Y);
+        return new Rect(p.X, p.Y, Math.Max(.01, b.Width * View.Zoom), Math.Max(.01, b.Height * View.Zoom));
     }
-    private static IBrush SafeBrush(string value, IBrush fallback)
+    private static IBrush Brush(string value, IBrush fallback)
     {
-        try { return new SolidColorBrush(Color.Parse(value)); }
-        catch (FormatException) { return fallback; }
+        if (BrushCache.TryGetValue(value, out var existing)) return existing;
+        try { var color = new SolidColorBrush(Color.Parse(value)); if (BrushCache.Count < 256) BrushCache[value] = color; return color; }
+        catch { return fallback; }
     }
-
+    private void ClearBitmapCache() { foreach (var item in _bitmaps.Values) item.Image.Dispose(); _bitmaps.Clear(); }
+    private Bitmap? ResolveBitmap(BoardElement e)
+    {
+        var value = e.EmbeddedImage;
+        if (string.IsNullOrEmpty(value) || value.Length > 12_000_000 || !value.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return null;
+        if (_bitmaps.TryGetValue(e.Id, out var cached)) return cached.Source == value ? cached.Image : ReplaceBitmap();
+        return ReplaceBitmap();
+        Bitmap? ReplaceBitmap()
+        {
+            if (_bitmaps.Remove(e.Id, out var old)) old.Image.Dispose();
+            try
+            {
+                var comma = value.IndexOf(',');
+                if (comma < 0 || !value[..comma].EndsWith(";base64", StringComparison.OrdinalIgnoreCase)) return null;
+                var raw = Convert.FromBase64String(value[(comma + 1)..]);
+                using var stream = new MemoryStream(raw);
+                var bitmap = new Bitmap(stream);
+                if (bitmap.PixelSize.Width > 8192 || bitmap.PixelSize.Height > 8192) { bitmap.Dispose(); return null; }
+                _bitmaps[e.Id] = (value, bitmap); return bitmap;
+            }
+            catch { return null; }
+        }
+    }
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        context.FillRectangle(Brushes.White, new Rect(Bounds.Size));
-        var zoom = View.Zoom;
-        var spacing = 24 * zoom;
-        if (spacing >= 11)
+        context.FillRectangle(IsDark ? Brush("#1A2233", Brushes.Black) : Brush("#FAFBFE", Brushes.White), new Rect(Bounds.Size));
+        var zoom = View.Zoom; var spacing = 24 * zoom;
+        // Cap the background-dot cost independently of zoom and viewport size.
+        if (ShowGrid && spacing >= 19 && Bounds.Width * Bounds.Height / (spacing * spacing) < 9500)
         {
-            var dotBrush = new SolidColorBrush(Color.Parse("#DDE3EF"));
-            var x = ((View.ToScreen(0, 0).X % spacing) + spacing) % spacing;
-            var y = ((View.ToScreen(0, 0).Y % spacing) + spacing) % spacing;
+            var dots = Brush(IsDark ? "#394457" : "#D9DEEC", Brushes.LightGray);
+            var x = ((View.OffsetX % spacing) + spacing) % spacing;
+            var y = ((View.OffsetY % spacing) + spacing) % spacing;
             for (var px = x; px < Bounds.Width; px += spacing)
-            for (var py = y; py < Bounds.Height; py += spacing)
-                context.DrawEllipse(dotBrush, null, new Point(px, py), 1, 1);
+            for (var py = y; py < Bounds.Height; py += spacing) context.DrawEllipse(dots, null, new Point(px, py), 1, 1);
         }
-
-        var visible = View.Visible(Bounds.Width, Bounds.Height).Inflate(30 / zoom);
+        var visible = View.Visible(Bounds.Width, Bounds.Height).Inflate(60 / zoom);
         var candidates = Engine.Visible(visible).ToList();
-        // The just-created/moving element is not in the spatial index until pointer-up.
-        if (_activeElement != null && candidates.All(x => x.Id != _activeElement.Id)) candidates.Add(_activeElement);
-        if (_movingElement != null && candidates.All(x => x.Id != _movingElement.Id)) candidates.Add(_movingElement);
+        // Spatial entries are updated only on pointer-up. Keep changed objects visible meanwhile.
+        foreach (var obj in Engine.Document.Elements.Where(o => _moveOrigins.ContainsKey(o.Id) || ReferenceEquals(o, _activeElement)))
+            if (candidates.All(c => c.Id != obj.Id)) candidates.Add(obj);
         foreach (var obj in candidates)
-            if (obj.Bounds.Intersects(visible) || obj == _activeElement || obj == _movingElement)
-                DrawElement(context, obj);
-
-        if (SelectedId != null)
-        {
-            var selected = Engine.Document.Elements.FirstOrDefault(e => e.Id == SelectedId);
-            if (selected != null)
-            {
-                var pen = new Pen(SafeBrush("#6153D8", Brushes.Blue), 1.6) { DashStyle = DashStyle.Dash };
-                context.DrawRectangle(null, pen, ScreenRect(selected.Bounds.Inflate(6 / zoom)));
-            }
-        }
+            if (obj.Bounds.Intersects(visible) || _moveOrigins.ContainsKey(obj.Id) || ReferenceEquals(obj, _activeElement)) DrawElement(context, obj);
+        var outline = new Pen(Brush("#7660E8", Brushes.Blue), 1.5) { DashStyle = DashStyle.Dash };
+        foreach (var obj in Engine.Document.Elements.Where(o => _selected.Contains(o.Id)))
+            context.DrawRectangle(null, outline, ScreenRect(obj.Bounds.Inflate(5 / zoom)));
+        if (_marquee is { } m)
+            context.DrawRectangle(Brush("#E8E6FF", Brushes.LightBlue), outline, ScreenRect(m));
     }
-
-    private void DrawElement(DrawingContext context, BoardElement e)
+    private void DrawElement(DrawingContext ctx, BoardElement e)
     {
-        var stroke = SafeBrush(e.Color, Brushes.DarkSlateBlue);
-        var fill = SafeBrush(e.Fill, Brushes.LightYellow);
-        var pen = new Pen(stroke, Math.Max(.75, e.Thickness * View.Zoom));
-        var rect = ScreenRect(e.Bounds);
+        var stroke = Brush(e.Color, Brushes.DarkSlateBlue); var fill = Brush(e.Fill, Brushes.LightYellow);
+        var thickness = Math.Max(.7, e.Thickness * View.Zoom);
+        var pen = new Pen(stroke, thickness) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        var r = ScreenRect(e.Bounds);
         switch (e.Kind)
         {
             case ElementKind.Stroke:
-                for (var i = 1; i < e.Points.Count; i++)
+                var pts = e.Points;
+                for (var i = 1; i < pts.Count; i++)
                 {
-                    var p1 = e.Points[i - 1]; var p2 = e.Points[i];
-                    // Keep pressure samples; renderer varies local width without mutating source points.
-                    var pressure = Math.Clamp((p1.Pressure + p2.Pressure) / 2f, .1f, 1f);
-                    var width = Math.Max(.75, e.Thickness * View.Zoom * (.55 + .9 * pressure));
-                    context.DrawLine(new Pen(stroke, width) { LineCap = PenLineCap.Round }, Screen(p1), Screen(p2));
+                    var a = pts[i-1]; var b = pts[i];
+                    var pressure = Math.Clamp((a.Pressure + b.Pressure) / 2, .1f, 1f);
+                    var width = Math.Max(.65, thickness * (.45 + pressure * .9));
+                    ctx.DrawLine(new Pen(stroke, width) { LineCap = PenLineCap.Round }, Screen(a), Screen(b));
                 }
-                if (e.Points.Count == 1)
-                    context.DrawEllipse(stroke, null, Screen(e.Points[0]), e.Thickness * View.Zoom / 2, e.Thickness * View.Zoom / 2);
+                if (pts.Count == 1) ctx.DrawEllipse(stroke, null, Screen(pts[0]), thickness / 2, thickness / 2);
                 break;
-            case ElementKind.Rectangle: context.DrawRectangle(fill, pen, rect, 7 * View.Zoom); break;
-            case ElementKind.Ellipse: context.DrawEllipse(fill, pen, rect.Center, rect.Width / 2, rect.Height / 2); break;
-            case ElementKind.Line:
-            case ElementKind.Arrow:
-                context.DrawLine(pen, Screen(e.X, e.Y), Screen(e.X + e.Width, e.Y + e.Height));
+            case ElementKind.Rectangle: ctx.DrawRectangle(fill, pen, r, 6 * View.Zoom); break;
+            case ElementKind.Ellipse: ctx.DrawEllipse(fill, pen, r.Center, r.Width / 2, r.Height / 2); break;
+            case ElementKind.Line: case ElementKind.Arrow:
+                var a = Screen(e.X, e.Y); var b = Screen(e.X + e.Width, e.Y + e.Height);
+                ctx.DrawLine(pen, a, b);
+                if (e.Kind == ElementKind.Arrow)
+                {
+                    var angle = Math.Atan2(b.Y-a.Y,b.X-a.X); var length = Math.Clamp(thickness * 3+8,10,26);
+                    ctx.DrawLine(pen,b,new Point(b.X-length*Math.Cos(angle-.5),b.Y-length*Math.Sin(angle-.5)));
+                    ctx.DrawLine(pen,b,new Point(b.X-length*Math.Cos(angle+.5),b.Y-length*Math.Sin(angle+.5)));
+                }
                 break;
             case ElementKind.Sticky:
-                context.DrawRectangle(fill, null, rect, 9 * View.Zoom);
-                DrawText(context, e.Text, rect.X + 12 * View.Zoom, rect.Y + 12 * View.Zoom, 16 * View.Zoom, Brushes.DarkSlateGray);
+                ctx.DrawRectangle(fill, null, r, 10 * View.Zoom);
+                DrawText(ctx, e.Text, r.X + 15 * View.Zoom, r.Y + 15 * View.Zoom, 17 * View.Zoom, Brush("#293248", Brushes.Black));
                 break;
-            case ElementKind.Text:
-                DrawText(context, e.Text, rect.X, rect.Y, 21 * View.Zoom, stroke);
-                break;
+            case ElementKind.Text: DrawText(ctx, e.Text, r.X, r.Y, 22 * View.Zoom, stroke); break;
             case ElementKind.Image:
-                context.DrawRectangle(Brushes.GhostWhite, new Pen(Brushes.LightGray, 1), rect);
-                DrawText(context, "Image · preserved", rect.X + 8, rect.Y + 8, 13, Brushes.Gray);
+                var img = ResolveBitmap(e);
+                if (img != null) ctx.DrawImage(img, r);
+                else { ctx.DrawRectangle(Brush("#F5F6FC", Brushes.White), new Pen(Brush("#BDC5D8", Brushes.Gray), 1), r); DrawText(ctx, "Image preview unavailable", r.X+12, r.Y+12, 12, Brushes.Gray); }
                 break;
         }
     }
-
     private static void DrawText(DrawingContext ctx, string text, double x, double y, double size, IBrush foreground)
     {
-        var lines = (text ?? "").Split('\n').Take(8);
-        var offset = 0d;
-        foreach (var line in lines)
+        var lineHeight = Math.Clamp(size,8,84) * 1.3;
+        foreach (var (line, index) in (text ?? "").Split('\n').Take(12).Select((line, index) => (line, index)))
         {
-            var formatted = new FormattedText(line, CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight, new Typeface("Segoe UI"), Math.Clamp(size, 8, 84), foreground);
-            ctx.DrawText(formatted, new Point(x, y + offset));
-            offset += size * 1.33;
+            var formatted = new FormattedText(line, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                new Typeface("Segoe UI"), Math.Clamp(size,8,84), foreground);
+            ctx.DrawText(formatted, new Point(x, y + index * lineHeight));
         }
     }
-
+    private void StartHistory() { if (_historyStarted) return; Engine.BeginEdit(); _historyStarted = true; }
+    private InkPoint Sample(PointerEventArgs e, (double X, double Y) at)
+    {
+        var props = e.GetCurrentPoint(this).Properties;
+        return new InkPoint(at.X,at.Y,e.Pointer.Type == PointerType.Pen ? Math.Clamp(props.Pressure,.05f,1f) : .5f,props.XTilt,props.YTilt);
+    }
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
-        base.OnPointerPressed(e);
-        Focus();
-        var pp = e.GetCurrentPoint(this);
-        if (!pp.Properties.IsLeftButtonPressed && !pp.Properties.IsMiddleButtonPressed) return;
-        _lastScreen = pp.Position;
-        _panning = Tool == CanvasTool.Pan || pp.Properties.IsMiddleButtonPressed;
-        _dragging = true; _changed = false;
+        base.OnPointerPressed(e); Focus();
+        var pointer = e.GetCurrentPoint(this);
+        if (!pointer.Properties.IsLeftButtonPressed && !pointer.Properties.IsMiddleButtonPressed) return;
+        _dragging=true;_changed=false;_historyStarted=false;_moving=false;
+        _lastScreen=pointer.Position;_dragOrigin=pointer.Position;
+        _panning=Tool==CanvasTool.Hand || pointer.Properties.IsMiddleButtonPressed || e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         e.Pointer.Capture(this);
-        var at = View.ToWorld(_lastScreen.X, _lastScreen.Y);
-        _startX = at.X; _startY = at.Y;
+        var at=View.ToWorld(_lastScreen.X,_lastScreen.Y);
         if (_panning) return;
         if (Tool == CanvasTool.Select)
         {
-            var hit = Engine.HitTest(at.X, at.Y, 8, View.Zoom);
-            SelectedId = hit?.Id;
-            _movingElement = hit;
+            var hit=Engine.HitTest(at.X,at.Y,7,View.Zoom);
             if (hit != null)
             {
-                Engine.BeginEdit(); _originalX = hit.X; _originalY = hit.Y;
-                if (hit.Kind == ElementKind.Stroke) _originalPoints = hit.Points.Select(p => new InkPoint(p.X, p.Y, p.Pressure, p.TiltX, p.TiltY)).ToList();
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) { if (!_selected.Add(hit.Id)) _selected.Remove(hit.Id); }
+                else if (!_selected.Contains(hit.Id)) { _selected.Clear(); _selected.Add(hit.Id); }
+                _moving = _selected.Contains(hit.Id);
+                _moveOrigins.Clear();
+                if (_moving) foreach (var obj in Engine.Document.Elements.Where(o=>_selected.Contains(o.Id))) _moveOrigins[obj.Id]=BoardCodec.CloneElement(obj);
             }
-            InvalidateVisual(); return;
-        }
-        Engine.BeginEdit();
-        if (Tool == CanvasTool.Eraser)
-        {
-            var hit = Engine.HitTest(at.X, at.Y, 12, View.Zoom);
-            if (hit != null) { _changed = Engine.Remove(hit.Id); SelectedId = null; InvalidateVisual(); }
-            return;
-        }
-        _activeElement = new BoardElement
-        {
-            Kind = Tool switch
+            else
             {
-                CanvasTool.Rectangle => ElementKind.Rectangle, CanvasTool.Ellipse => ElementKind.Ellipse,
-                CanvasTool.Sticky => ElementKind.Sticky, CanvasTool.Text => ElementKind.Text,
-                _ => ElementKind.Stroke
-            },
-            X = at.X, Y = at.Y, Width = 1, Height = 1, Thickness = Tool == CanvasTool.Highlighter ? InkWidth * 3 : InkWidth,
-            Color = Tool == CanvasTool.Highlighter ? "#97A4EB" : InkColor,
-            Fill = Tool == CanvasTool.Sticky ? "#FFEFAD" : "#FFFFFF",
-            Text = Tool == CanvasTool.Sticky ? "New note" : Tool == CanvasTool.Text ? "Text" : ""
-        };
-        if (_activeElement.Kind == ElementKind.Stroke) _activeElement.Points.Add(Sample(e, at));
-        else if (_activeElement.Kind is ElementKind.Sticky or ElementKind.Text)
-        {
-            _activeElement.Width = 190; _activeElement.Height = 125;
+                if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift)) _selected.Clear();
+                _marquee = new WorldRect(at.X,at.Y,0,0);
+            }
+            SelectionChanged?.Invoke();InvalidateVisual();return;
         }
-        Engine.Add(_activeElement); _changed = true; InvalidateVisual();
+        if (Tool == CanvasTool.Eraser) { EraseAt(at); return; }
+        StartHistory();
+        _activeElement=new BoardElement
+        {
+            Kind=Tool switch { CanvasTool.Rectangle=>ElementKind.Rectangle,CanvasTool.Ellipse=>ElementKind.Ellipse,
+                CanvasTool.Line=>ElementKind.Line,CanvasTool.Arrow=>ElementKind.Arrow,
+                CanvasTool.Sticky=>ElementKind.Sticky,CanvasTool.Text=>ElementKind.Text,_=>ElementKind.Stroke },
+            X=at.X,Y=at.Y,Width=1,Height=1,
+            Thickness=Tool==CanvasTool.Highlighter?InkWidth*3:InkWidth,
+            Color=Tool==CanvasTool.Highlighter?"#91A4E8":InkColor,
+            Fill=Tool==CanvasTool.Sticky?"#FFF0B7":"#FFFFFF",
+            Text=Tool==CanvasTool.Sticky?"New sticky note":""
+        };
+        if (_activeElement.Kind==ElementKind.Stroke) InkPipeline.Append(_activeElement.Points,Sample(e,at),View.Zoom);
+        if (_activeElement.Kind is ElementKind.Sticky or ElementKind.Text)
+        { _activeElement.Width=220;_activeElement.Height=175; }
+        Engine.Add(_activeElement);
+        if (_activeElement.Kind is ElementKind.Text or ElementKind.Sticky)
+        {
+            _selected.Clear(); _selected.Add(_activeElement.Id); SelectionChanged?.Invoke();
+        }
+        _changed=true;InvalidateVisual();
     }
-
-    private InkPoint Sample(PointerEventArgs e, (double X, double Y) at)
+    private void EraseAt((double X,double Y) at)
     {
-        var point = e.GetCurrentPoint(this);
-        var props = point.Properties;
-        return new InkPoint(at.X, at.Y, point.Pointer.Type == PointerType.Pen ? Math.Clamp(props.Pressure, .1f, 1f) : .5f,
-            props.XTilt, props.YTilt);
+        var radius=11 / View.Zoom;
+        // Only start a history transaction if there is an actual nearby stroke.
+        var nearby=Engine.Document.Elements.Any(obj => obj.Kind==ElementKind.Stroke && obj.Bounds.Inflate(radius+obj.Thickness).Contains(at.X,at.Y) &&
+            BoardEngine.StrokeHit(obj.Points,at.X,at.Y,radius+obj.Thickness));
+        if (!nearby) return;
+        StartHistory();
+        if (Engine.EraseInk(at.X,at.Y,radius)>0) { _changed=true; InvalidateVisual(); }
     }
-
     protected override void OnPointerMoved(PointerEventArgs e)
     {
-        base.OnPointerMoved(e);
-        if (!_dragging) return;
-        var now = e.GetPosition(this);
-        var at = View.ToWorld(now.X, now.Y);
-        if (_panning)
+        base.OnPointerMoved(e); if (!_dragging)return;
+        var screen=e.GetPosition(this);var at=View.ToWorld(screen.X,screen.Y);
+        if (_panning) { View.Pan(screen.X-_lastScreen.X,screen.Y-_lastScreen.Y);_lastScreen=screen;InvalidateVisual();ViewChanged?.Invoke();return; }
+        if (Tool==CanvasTool.Eraser) { EraseAt(at);return; }
+        if (Tool==CanvasTool.Select)
         {
-            View.Pan(now.X - _lastScreen.X, now.Y - _lastScreen.Y);
-            _lastScreen = now; InvalidateVisual(); ViewChanged?.Invoke(); return;
-        }
-        if (_movingElement != null)
-        {
-            var dx = at.X - _startX; var dy = at.Y - _startY;
-            _movingElement.X = _originalX + dx; _movingElement.Y = _originalY + dy;
-            if (_originalPoints != null)
-                _movingElement.Points = _originalPoints.Select(p => new InkPoint(p.X + dx, p.Y + dy, p.Pressure, p.TiltX, p.TiltY)).ToList();
-            _changed = true;
-        }
-        else if (_activeElement != null)
-        {
-            if (_activeElement.Kind == ElementKind.Stroke)
+            if (_marquee != null)
             {
-                var last = _activeElement.Points[^1];
-                if (double.Hypot(at.X - last.X, at.Y - last.Y) > .5 / View.Zoom)
-                    _activeElement.Points.Add(Sample(e, at));
+                var start=View.ToWorld(_dragOrigin.X,_dragOrigin.Y);
+                _marquee=new WorldRect(Math.Min(start.X,at.X),Math.Min(start.Y,at.Y),Math.Abs(at.X-start.X),Math.Abs(at.Y-start.Y));
             }
-            else if (_activeElement.Kind is ElementKind.Rectangle or ElementKind.Ellipse)
+            else if (_moving && _moveOrigins.Count>0)
             {
-                _activeElement.X = Math.Min(_startX, at.X);
-                _activeElement.Y = Math.Min(_startY, at.Y);
-                _activeElement.Width = Math.Max(1, Math.Abs(at.X - _startX));
-                _activeElement.Height = Math.Max(1, Math.Abs(at.Y - _startY));
+                var sx=(screen.X-_dragOrigin.X)/View.Zoom;var sy=(screen.Y-_dragOrigin.Y)/View.Zoom;
+                if (Math.Abs(sx)+Math.Abs(sy)>.7 && !_changed) { StartHistory();_changed=true; }
+                if (_changed)
+                foreach (var obj in Engine.Document.Elements.Where(o=>_moveOrigins.ContainsKey(o.Id)))
+                {
+                    var orig=_moveOrigins[obj.Id];obj.X=orig.X+sx;obj.Y=orig.Y+sy;
+                    if (orig.Kind==ElementKind.Stroke)
+                        obj.Points=orig.Points.Select(p=>new InkPoint(p.X+sx,p.Y+sy,p.Pressure,p.TiltX,p.TiltY)).ToList();
+                }
             }
+            InvalidateVisual();return;
         }
-        InvalidateVisual();
+        if (_activeElement is { } obj)
+        {
+            if (obj.Kind==ElementKind.Stroke) InkPipeline.Append(obj.Points,Sample(e,at),View.Zoom);
+            else if (obj.Kind is ElementKind.Rectangle or ElementKind.Ellipse)
+            {
+                var initial=View.ToWorld(_dragOrigin.X,_dragOrigin.Y);
+                obj.X=Math.Min(initial.X,at.X);obj.Y=Math.Min(initial.Y,at.Y);
+                obj.Width=Math.Max(1,Math.Abs(at.X-initial.X));obj.Height=Math.Max(1,Math.Abs(at.Y-initial.Y));
+            }
+            else if (obj.Kind is ElementKind.Line or ElementKind.Arrow)
+            {
+                var initial=View.ToWorld(_dragOrigin.X,_dragOrigin.Y);
+                obj.X=initial.X;obj.Y=initial.Y;obj.Width=at.X-initial.X;obj.Height=at.Y-initial.Y;
+            }
+            InvalidateVisual();
+        }
     }
-
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
-        base.OnPointerReleased(e);
-        if (!_dragging) return;
-        e.Pointer.Capture(null);
-        _dragging = _panning = false;
-        _activeElement = _movingElement = null;
-        _originalPoints = null;
+        base.OnPointerReleased(e);if(!_dragging)return;e.Pointer.Capture(null);
+        if (_marquee is { } m && m.Width>4/View.Zoom && m.Height>4/View.Zoom)
+        {
+            foreach (var element in Engine.Document.Elements)
+                if (element.Bounds.Intersects(m)) _selected.Add(element.Id);
+            SelectionChanged?.Invoke();
+        }
+        _marquee=null;_moveOrigins.Clear();_dragging=_panning=_moving=false;_activeElement=null;
         if (_changed) Engine.CompleteEdit();
-        InvalidateVisual();
+        _changed=false;_historyStarted=false;InvalidateVisual();
     }
-
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        base.OnPointerWheelChanged(e);
-        var p = e.GetPosition(this);
-        View.ZoomAround(Math.Pow(1.12, e.Delta.Y), p.X, p.Y);
-        InvalidateVisual(); ViewChanged?.Invoke();
-        e.Handled = true;
+        base.OnPointerWheelChanged(e);var p=e.GetPosition(this);
+        View.ZoomAround(Math.Pow(1.12,e.Delta.Y),p.X,p.Y);InvalidateVisual();ViewChanged?.Invoke();e.Handled=true;
     }
 }
