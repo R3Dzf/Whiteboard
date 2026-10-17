@@ -43,7 +43,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "artifactName": "Inklume-Setup-${version}-${arch}.${ext}",
-      "differentialPackage": "store-asar"
+      "differentialPackage": true
     },
     "portable": {
       "artifactName": "Inklume-Portable-${version}-${arch}.${ext}"
