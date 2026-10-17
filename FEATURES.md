@@ -1,97 +1,77 @@
-# Feature parity tracker — Bosha Whiteboard vs. Microsoft Whiteboard
+# Microsoft Whiteboard vs Bosha Whiteboard — feature tracker
 
-> Updated: 17 October 2026. **Implemented** means present in the source and exercised where possible; it does **not** mean all edge cases or operating systems are certified. **Partial** means a usable but not fully equivalent implementation. **Planned** means no working implementation yet. The Microsoft column reflects Microsoft's published Whiteboard documentation rather than a guarantee for every account/license.
->
-> Microsoft retired its standalone Windows, Android and iOS apps on **16 October 2026**. Its web and Teams experiences continue for eligible work/school accounts. https://support.microsoft.com/en-us/whiteboard/retirement-standalone-microsoft-whiteboard-apps
+Updated 2026-10-17 · Bosha v0.2.0 beta source preview
 
-| Area | Capability | Microsoft Whiteboard | Bosha Whiteboard | Notes / outstanding work |
-|---|---|:---:|:---:|---|
-| Platform | Standalone Windows desktop app | Previously | **Implemented** (Electron source; CI packaging pending) | Windows build produced by GitHub Actions once install succeeds; unsigned. |
-| Platform | Web/browser interface | Yes | **Implemented** | Open index.html in a browser; no cloud required. |
-| Platform | Android native app | Previously | **Planned** | Touch-enabled browser UI exists, not an Android APK. |
-| Platform | iOS native app | Previously | **Planned** | Touch-enabled browser UI exists, not an iOS app. |
-| Accounts | Work/school account sign-in | Yes | **Not planned** | An intentional offline-first alternative. |
-| Accounts | No sign-in needed | No for sharing | **Implemented** | Fully local. |
-| Canvas | Unlimited panning | Yes | **Implemented** | Coordinates extend freely beyond the screen. |
-| Canvas | Mouse wheel zoom | Yes | **Implemented** | Zoom anchored to pointer. |
-| Canvas | Fit all / reset zoom | Yes | **Implemented** | Fit button, 100% button. |
-| Canvas | Touch drawing, touch pinch | Yes | **Partial** | Pointer Events support; needs hardware validation on Windows touchscreens. |
-| Canvas | Mouse / pen input | Yes | **Implemented** | Uses pointer events, no special driver. |
-| Canvas | Dots, grid, ruled, plain backgrounds | Yes | **Implemented** | Per-board setting. |
-| Canvas | Dark canvas | Yes | **Implemented** | Per-board setting. |
-| Canvas | Ruler / angle adjustment | Yes | **Planned** | Precise measurement tool. |
-| Ink | Freehand pen and thickness | Yes | **Implemented** | Color and adjustable width. |
-| Ink | Highlighter | Yes | **Implemented** | Semi-transparent strokes. |
-| Ink | Ink eraser | Yes | **Partial** | Deletes whole strokes; segment eraser planned. |
-| Ink | Single arrow pen | Yes | **Partial** | Arrow shapes are implemented; no dedicated ink-arrow mode. |
-| Ink | Double arrow pen | Yes | **Planned** | Dual endpoints. |
-| Ink | Hold Shift for straight ink | Yes | **Implemented** | While drawing a stroke. |
-| Ink | Temporary laser pointer | Yes | **Implemented** | Temporary cursor indicator, not saved. |
-| Ink | Smart shape recognition | Yes | **Planned** | Shape tools already produce precise geometry. |
-| Ink | 15 pens / 15 highlighters | Yes | **Partial** | 10 preset colors + native custom picker. |
-| Objects | Sticky notes with colored backgrounds | Yes | **Implemented** | Create, move, resize, edit and recolor. |
-| Objects | Note grids | Yes | **Partial** | Gridded note groups available through templates, not linked note containers. |
-| Objects | Text boxes | Yes | **Implemented** | Editable text and font sizes. |
-| Objects | Shapes | Yes | **Implemented** | Rectangles, ellipses, diamonds, lines and arrows. |
-| Objects | Reactions | Yes | **Implemented** | 12 Unicode reaction styles. |
-| Objects | Images / photographs | Yes | **Implemented** | PNG, JPEG, WebP, GIF: file input and clipboard. 4 MB per image. |
-| Objects | Import PDF pages | Yes | **Planned** | Requires local PDF renderer. |
-| Objects | Import PowerPoint pages | Yes | **Planned** | Requires file converter. |
-| Objects | YouTube / links / rich embeds | Variant | **Planned** | Offline-oriented options under evaluation. |
-| Editing | Object select, drag, resize | Yes | **Implemented** | Resize using lower-right handle. |
-| Editing | Multiple selection / marquee | Yes | **Implemented** | Drag empty canvas / Shift+select. |
-| Editing | Freeform lasso tool | Yes | **Planned** | Marquee currently substitutes. |
-| Editing | Duplicate, delete, copy/paste | Yes | **Implemented** | In-app object clipboard and shortcuts. |
-| Editing | Bring forward / send backward | Yes | **Partial** | Bring to front and send to back, not step-by-step. |
-| Editing | Object snapping / alignment guides | Yes | **Planned** | Intended for later phase. |
-| Editing | Rotation of arbitrary objects | Yes | **Planned** | Move/resize work; rotation pending. |
-| Editing | Group / ungroup objects | Yes | **Planned** | Multi-select currently supported. |
-| Editing | Undo / redo | Yes | **Implemented** | Up to 80 document snapshots per open session. |
-| Templates | Brainstorming | Yes | **Implemented** | One editable layout. |
-| Templates | Kanban / project planning | Yes | **Implemented** | One editable layout. |
-| Templates | SWOT analysis | Yes | **Implemented** | Editable layout. |
-| Templates | Mind mapping | Yes | **Implemented** | Editable starter nodes and connections. |
-| Templates | Retrospective | Yes | **Implemented** | Editable layout. |
-| Templates | Lesson plan | Yes | **Implemented** | Editable layout. |
-| Templates | Large official category library | Yes | **Partial** | Six built-in templates; expanding catalog pending. |
-| Templates | Save and share custom templates | Yes | **Planned** | Exporting whole boards as backups works. |
-| Library | Multi-board gallery | Yes | **Implemented** | Search, new, rename, duplicate, delete. |
-| Library | Autosave | Yes | **Implemented** | IndexedDB on device with visible status. |
-| Library | Offline access | Varies | **Implemented** | No network calls in application UI. |
-| Library | Import/export editable format | Limited | **Implemented** | Bosha-specific `.bosha.json`; not a Microsoft `.whiteboard` reader. |
-| Library | Import Microsoft `.whiteboard` documents | No native general interchange | **Planned** | Reverse engineering / migration separate effort. |
-| Export | PNG export | Yes | **Implemented** | Renders the board into a PNG locally. |
-| Export | SVG vector export | Not documented as standard | **Implemented** | Scalable vector format. |
-| Export | PDF export | Not standard direct feature | **Planned** | Dedicated PDF export pending. |
-| Collaboration | Real-time multi-user editing | Yes | **Planned** | Requires opt-in sync/backend or LAN session protocol. |
-| Collaboration | Live collaborator cursors | Yes | **Planned** | Part of collaboration phase. |
-| Collaboration | Invite links / roles / view-only | Yes | **Planned** | Permission system pending. |
-| Collaboration | Microsoft Teams integration | Yes | **Not planned** | Independent product, not Microsoft-connected. |
-| AI | Copilot workflows | Eligible subscriptions | **Not implemented** | Optional offline intelligence could be added later. |
-| Accessibility | Keyboard shortcuts | Yes | **Implemented** | V/H/P/M/E/L/N/T/R/O/D/I/A, Ctrl+Z/Y/C/V/D/S. |
-| Accessibility | Screen reader support | Yes | **Partial** | Buttons labeled; full canvas object navigation pending. |
-| Privacy | No tracking, no telemetry | Varies | **Implemented** | No analytics SDK or remote dependencies. |
-| Backup | Multi-device synchronization | Microsoft 365 cloud | **Planned** | Local transfer / user-selected transport phase. |
-| Release | Installer / portable EXE | Previously | **Partial** | Packaging workflow provided; CI build not yet verified on GitHub. |
-| Testing | Automated tests | Internal | **Partial** | Node model tests and local headless UI smoke test; more coverage needed. |
+Legend: ✅ Implemented in source; 🟡 partial / needs validation; ⬜ not built; ➖ intentionally out of scope. Microsoft status follows published feature docs; availability depends on edition.
 
-## Implementation milestones
+Microsoft retired its standalone Windows, iOS and Android apps on October 16, 2026. Whiteboard on the web and in Teams remains available for eligible work/school users.
 
-- **Phase 1 (in this commit)**: Windows desktop scaffold, local storage, drawing engine, object tools, boards library, templates, export, keyboard, test harness.
-- **Phase 2**: Improve drawing fidelity, pressure sensitivity, reliable pen erasing, snapping, rotation, lasso, grouping, ruler, undo/view history.
-- **Phase 3**: PDF import/export, improved documents, custom templates, larger objects, print support.
-- **Phase 4**: Secure LAN collaboration, permissions, live pointers and conflict resolution, opt-in sync.
-- **Phase 5**: Android packaging, accessibility audit, performance/stress tests and signed releases.
+Area | Feature | Microsoft Whiteboard | Bosha v0.2 | Status / note
+---|---|:---:|:---:|---
+Platform | Windows standalone | Retired | 🟡 | Electron source; installer unvalidated
+Platform | Browser interface | ✅ | ✅ | Offline drawing core
+Platform | Android native app | Retired | ⬜ | Not built
+Platform | iOS native app | Retired | ⬜ | Not built
+Account | No-account use | Varies | ✅ | No sign-in needed
+Canvas | Infinite canvas / zoom / pan | ✅ | ✅ | Includes fit-to-content
+Canvas | Grid, ruled, dotted, dark surface | ✅ | ✅ | Per board
+Canvas | Touch / pinch | ✅ | 🟡 | Implemented; hardware validation pending
+Canvas | Ruler | ✅ | 🟡 | Movable rotatable overlay; no ink constraint
+Canvas | Snap-to-grid | Varies | ✅ | Toggle
+Ink | Pen, thickness, custom colors | ✅ | ✅ | Mouse/pen
+Ink | Pressure-sensitive pen | ✅ | 🟡 | PointerEvent pressure; hardware validation pending
+Ink | Highlighter | ✅ | ✅ | Semi-transparent
+Ink | Eraser | ✅ | ✅ | Sampled stroke segments
+Ink | Straight line ink with Shift | ✅ | ✅ | Pen mode
+Ink | Ink-to-shape auto recognition | ✅ | ⬜ | Not built
+Ink | Laser pointer | ✅ | ✅ | Not saved
+Ink | Double arrow mode | ✅ | ✅ | Shape equivalent
+Elements | Shapes, line, arrow, text | ✅ | ✅ | Editable
+Elements | Sticky notes | ✅ | ✅ | Multiple colors
+Elements | Note grids | ✅ | 🟡 | Template arrangement only
+Elements | Images / photos | ✅ | ✅ | PNG, JPEG, WebP, GIF
+Elements | Reactions / emojis | ✅ | ✅ | Twelve styles
+Elements | PDF import | ✅ | ⬜ | Local PDF renderer needed
+Elements | PowerPoint import | ✅ | ⬜ | Local slide renderer needed
+Selection | Box multi-select | ✅ | ✅ | Marquee
+Selection | Lasso select | ✅ | ✅ | Freeform polygon selection
+Editing | Move / resize | ✅ | ✅ | Object-specific controls
+Editing | Rotate | ✅ | 🟡 | Handle + inspector, some resize limits
+Editing | Group / ungroup | ✅ | ✅ | Persists in JSON backup
+Editing | Align multiple objects | ✅ | ✅ | Six align modes
+Editing | Copy/paste/duplicate | ✅ | ✅ | In-app object clipboard
+Editing | Bring front/send back | ✅ | ✅ | Supported
+Editing | Undo/redo | ✅ | ✅ | 80 object snapshots
+Templates | Brainstorm/Kanban/SWOT/mindmap | ✅ | ✅ | Plus retro and lesson
+Templates | Large template library | ✅ | 🟡 | Six starters
+Storage | Multiple boards/gallery/search | ✅ | ✅ | Local IndexedDB
+Storage | Autosave | ✅ | 🟡 | Built; Windows persistence smoke needed
+Storage | Editable import/export backup | Other format | ✅ | .bosha.json
+Storage | Import Microsoft .whiteboard | Native | ⬜ | Not compatible
+Export | PNG | ✅ | ✅ | Local render
+Export | SVG vector | Varies | ✅ | Local render
+Export | PDF | Varies | ✅ | Single flattened A4 page
+Collaboration | Live multi-editor | ✅ | ⬜ | No sync backend
+Collaboration | Live cursors | ✅ | ⬜ | Not built
+Collaboration | Invite links/roles | ✅ | ⬜ | Not built
+Collaboration | Teams integration | ✅ | ➖ | Independent product
+Privacy | No telemetry | Varies | ✅ | No analytics/remote requests
+Release | Signed stable Windows binary | Retired | ⬜ | Windows packaging still pending
+Release | Portable EXE/NSIS build scripts | N/A | 🟡 | CI definition present
+Quality | Automated model tests | Internal | ✅ | 15 checks passed; advanced isolated browser smoke tested
 
-## Microsoft documentation (feature references)
+## Work completed in v0.2
 
-- [Standalone app retirement](https://support.microsoft.com/en-us/whiteboard/retirement-standalone-microsoft-whiteboard-apps)
-- [Draw and ink](https://support.microsoft.com/en-us/whiteboard/draw-and-ink-in-whiteboard)
-- [Whiteboard Create panel](https://support.microsoft.com/en-us/whiteboard/whiteboard-create-panel)
-- [Select shapes and reactions](https://support.microsoft.com/en-us/whiteboard/select-shapes-and-reactions-in-whiteboard)
-- [Notes and note grids](https://support.microsoft.com/en-us/whiteboard/add-notes-and-note-grids-in-whiteboard)
-- [Templates](https://support.microsoft.com/en-us/whiteboard/insert-templates-in-whiteboard)
-- [Collaboration](https://support.microsoft.com/en-us/whiteboard/get-started-with-whiteboard-collaboration)
-- [Settings](https://support.microsoft.com/en-us/whiteboard/whiteboard-settings-menu)
-- [Export](https://support.microsoft.com/en-us/whiteboard/export-a-whiteboard)
-- [Shortcuts](https://support.microsoft.com/en-us/whiteboard/whiteboard-keyboard-shortcuts)
+Added lasso, grouping, alignment, snap, rotation, visual ruler, pressure-aware ink strokes, partial eraser, two-headed arrows, single-page PDF export and 9 additional model/PDF tests.
+
+## Not finished
+
+Native PDF and PowerPoint import; collaborative live editing/cursors/roles; accurate hardware-pen and Windows persistence verification; Android app; a tested and signed Windows release.
+
+## Sources
+
+- https://support.microsoft.com/en-us/whiteboard/retirement-standalone-microsoft-whiteboard-apps
+- https://support.microsoft.com/en-us/whiteboard/draw-and-ink-in-whiteboard
+- https://support.microsoft.com/en-us/whiteboard/whiteboard-create-panel
+- https://support.microsoft.com/en-us/whiteboard/use-ruler-and-enhance-shapes-in-whiteboard
+- https://support.microsoft.com/en-us/whiteboard/use-mouse-keyboard-and-pen-in-whiteboard
