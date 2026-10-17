@@ -18,6 +18,7 @@ public sealed class BoardCanvas : Control
     private readonly Dictionary<string, (string Source, Bitmap Image)> _bitmaps = new();
     private readonly HashSet<string> _selected = new();
     private readonly Dictionary<string, BoardElement> _moveOrigins = new();
+    private readonly List<BoardElement> _movingReferences = new();
     public BoardEngine Engine { get; private set; }
     public BoardViewport View { get; } = new();
     public CanvasTool Tool { get; set; } = CanvasTool.Pen;
@@ -138,7 +139,8 @@ public sealed class BoardCanvas : Control
         var visible = View.Visible(Bounds.Width, Bounds.Height).Inflate(60 / zoom);
         var candidates = Engine.Visible(visible).ToList();
         // Spatial entries are updated only on pointer-up. Keep changed objects visible meanwhile.
-        foreach (var obj in Engine.Document.Elements.Where(o => _moveOrigins.ContainsKey(o.Id) || ReferenceEquals(o, _activeElement)))
+        if (_activeElement != null && candidates.All(c => c.Id != _activeElement.Id)) candidates.Add(_activeElement);
+        foreach (var obj in _movingReferences)
             if (candidates.All(c => c.Id != obj.Id)) candidates.Add(obj);
         foreach (var obj in candidates)
             if (obj.Bounds.Intersects(visible) || _moveOrigins.ContainsKey(obj.Id) || ReferenceEquals(obj, _activeElement)) DrawElement(context, obj);
@@ -226,8 +228,9 @@ public sealed class BoardCanvas : Control
                 if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) { if (!_selected.Add(hit.Id)) _selected.Remove(hit.Id); }
                 else if (!_selected.Contains(hit.Id)) { _selected.Clear(); _selected.Add(hit.Id); }
                 _moving = _selected.Contains(hit.Id);
-                _moveOrigins.Clear();
-                if (_moving) foreach (var obj in Engine.Document.Elements.Where(o=>_selected.Contains(o.Id))) _moveOrigins[obj.Id]=BoardCodec.CloneElement(obj);
+                _moveOrigins.Clear();_movingReferences.Clear();
+                if (_moving) foreach (var obj in Engine.Document.Elements.Where(o=>_selected.Contains(o.Id)))
+                { _moveOrigins[obj.Id]=BoardCodec.CloneElement(obj);_movingReferences.Add(obj); }
             }
             else
             {
@@ -287,7 +290,7 @@ public sealed class BoardCanvas : Control
                 var sx=(screen.X-_dragOrigin.X)/View.Zoom;var sy=(screen.Y-_dragOrigin.Y)/View.Zoom;
                 if (Math.Abs(sx)+Math.Abs(sy)>.7 && !_changed) { StartHistory();_changed=true; }
                 if (_changed)
-                foreach (var obj in Engine.Document.Elements.Where(o=>_moveOrigins.ContainsKey(o.Id)))
+                foreach (var obj in _movingReferences)
                 {
                     var orig=_moveOrigins[obj.Id];obj.X=orig.X+sx;obj.Y=orig.Y+sy;
                     if (orig.Kind==ElementKind.Stroke)
@@ -322,7 +325,7 @@ public sealed class BoardCanvas : Control
                 if (element.Bounds.Intersects(m)) _selected.Add(element.Id);
             SelectionChanged?.Invoke();
         }
-        _marquee=null;_moveOrigins.Clear();_dragging=_panning=_moving=false;_activeElement=null;
+        _marquee=null;_moveOrigins.Clear();_movingReferences.Clear();_dragging=_panning=_moving=false;_activeElement=null;
         if (_changed) Engine.CompleteEdit();
         _changed=false;_historyStarted=false;InvalidateVisual();
     }
