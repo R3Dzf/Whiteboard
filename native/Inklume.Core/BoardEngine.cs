@@ -6,6 +6,7 @@ public sealed class BoardEngine
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
     private readonly SpatialHashIndex _index = new();
+    private readonly Dictionary<string, (int Order, BoardElement Element)> _lookup = new();
     private readonly Stack<string> _undo = new();
     private readonly Stack<string> _redo = new();
     public BoardDocument Document { get; private set; }
@@ -14,7 +15,7 @@ public sealed class BoardEngine
     public BoardEngine(BoardDocument? document = null)
     {
         Document = document ?? new BoardDocument();
-        _index.Rebuild(Document.Elements);
+        Reindex();
     }
 
     public void BeginEdit()
@@ -28,9 +29,17 @@ public sealed class BoardEngine
         _redo.Clear();
     }
 
-    public void CompleteEdit()
+    private void Reindex()
     {
         _index.Rebuild(Document.Elements);
+        _lookup.Clear();
+        for (var i = 0; i < Document.Elements.Count; i++)
+            _lookup[Document.Elements[i].Id] = (i, Document.Elements[i]);
+    }
+
+    public void CompleteEdit()
+    {
+        Reindex();
         Document.UpdatedUtc = DateTimeOffset.UtcNow;
         Changed?.Invoke();
     }
@@ -45,18 +54,19 @@ public sealed class BoardEngine
     public IEnumerable<BoardElement> Visible(WorldRect world)
     {
         var ids = _index.Query(world);
-        // Document order is authoritative for z-index.
-        return Document.Elements.Where(e => ids.Contains(e.Id));
+        // Sort only spatial candidates; do not scan the whole document during every frame.
+        return ids.Where(id => _lookup.ContainsKey(id))
+            .OrderBy(id => _lookup[id].Order).Select(id => _lookup[id].Element);
     }
 
     public BoardElement? HitTest(double x, double y, double screenRadius, double zoom)
     {
         var distance = screenRadius / Math.Max(.1, zoom);
         var ids = _index.Query(new WorldRect(x - distance, y - distance, distance * 2, distance * 2));
-        for (var i = Document.Elements.Count - 1; i >= 0; i--)
+        foreach (var id in ids.Where(id => _lookup.ContainsKey(id))
+                     .OrderByDescending(id => _lookup[id].Order))
         {
-            var element = Document.Elements[i];
-            if (!ids.Contains(element.Id)) continue;
+            var element = _lookup[id].Element;
             if (element.Kind == ElementKind.Stroke)
             {
                 if (StrokeHit(element.Points, x, y, distance + element.Thickness / 2)) return element;
